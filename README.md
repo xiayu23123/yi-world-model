@@ -44,7 +44,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 33 passed
+pytest -q                                            # 35 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -126,7 +126,7 @@ soft labels help only when `yao_target` is on a common scale (synth), and hurt
 | `model.py` | `YiWorldModel` assembly + King Wen conversion |
 | `losses.py` | multi-task loss: 本卦 CE (opt. soft) / 之卦 CE / 动爻 BCE + pairwise ranking / 行动 CE / `L_yao` Huber / 吉凶 / 五行 balance |
 | `data.py` / `synth.py` / `textenc.py` | `eco` generator / `synth` generator + `SynthPool` / pluggable frozen text encoders |
-| `augment.py` | LLM back-inversion augmentation: jargon-free prompt + projector consistency filter (`llm_fn` is a plug; offline `paraphrase_fallback`) |
+| `augment.py` | LLM back-inversion augmentation: jargon-free prompt, `str->str` backends (anthropic / ollama / mock / paraphrase), projector consistency filter, crash-safe `build_semantic_jsonl` |
 | `train.py` / `demo.py` / `analysis.py` | training loop / one-shot visualization / 之卦 error decomposition |
 
 ## Data augmentation (`augment.py`) — opt-in, not run by default
@@ -136,9 +136,25 @@ LLM back-inversion: structure row → jargon-free prompt → LLM → situation t
 pattern, drop samples that disagree with the structure they came from). This
 buys *within-hexagram* diversity (many surface forms of one structure); it does
 **not** buy cross-hexagram distinguishability, so it is augmentation, not
-ground truth. `llm_fn` is a `str -> str` plug (`anthropic_llm_fn()` provided);
-`paraphrase_fallback` is a no-LLM stand-in so the pipeline + filter are testable
-offline. Prompt forbids 卦 names, 爻位 terms, and 阴阳/五行 vocabulary.
+ground truth.
+
+```bash
+python -c "from yiwm.augment import build_semantic_jsonl, anthropic_llm_fn; \
+  build_semantic_jsonl('data/sem.jsonl', 500, anthropic_llm_fn(), seed=0)"   # incremental append; crash-safe
+python -m yiwm.train --semantic-data data/sem.jsonl --steps 4000              # train the head on it
+```
+
+- `llm_fn` is a `str -> str` plug: `anthropic_llm_fn()` / `ollama_llm_fn()` /
+  `mock_llm_fn` / `paraphrase_fallback` (no-LLM, so the pipeline + filter run
+  offline). No LLM is called unless you pass one.
+- Prompt forbids 卦 names, 爻位 terms, 阴阳/五行 vocab, and 鸡汤 words
+  (努力/坚持/成功/正能量/…). Force is bucketed (有力/一般/薄弱), positions named
+  (最底层/第二层/…) — nothing to leak.
+- `build_semantic_jsonl` writes one JSON object per accepted line and `flush()`es,
+  so a crash after *k* keeps the first *k*.
+- `SemanticJsonlDataset` embeds the texts once, rebuilds entities from `ben_k`,
+  and yields the standard batch dict — training on it only moves the
+  `YinYangEncoder` head (obs encoder is frozen by construction).
 
 ## Known limits / next
 

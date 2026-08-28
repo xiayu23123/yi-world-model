@@ -23,9 +23,16 @@ def train(
     yao_norm: bool = False,
     text_encoder: str = "hash",
     synth_pool: int = 0,
+    semantic_data: str | None = None,
 ):
     torch.manual_seed(seed)
-    make, obs_dim = get_dataset(data, text_encoder, synth_pool)
+    if semantic_data:
+        from .data import SemanticJsonlDataset
+
+        make = SemanticJsonlDataset(semantic_data, text_encoder)
+        obs_dim, data = make.obs_dim, "semantic"
+    else:
+        make, obs_dim = get_dataset(data, text_encoder, synth_pool)
     model = YiWorldModel(obs_dim=obs_dim).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     model.train()
@@ -87,7 +94,9 @@ if __name__ == "__main__":
                     help="synth obs source: hash (offline, no synonym generalisation) or a FROZEN sentence-transformer")
     ap.add_argument("--synth-pool", type=int, default=0,
                     help="pre-generate+embed a fixed pool of this many synth rows (needed to train the slow ST encoders); 0 = fresh every batch")
+    ap.add_argument("--semantic-data", default=None,
+                    help="path to a JSONL from augment.build_semantic_jsonl; overrides --data")
     a = ap.parse_args()
     train(a.steps, a.batch_size, a.lr, a.device, a.ckpt, a.data, a.log_every,
-          soft_hex_temp=a.soft_hex_temp, yao_norm=a.yao_norm,
+          soft_hex_temp=a.soft_hex_temp, yao_norm=a.yao_norm, semantic_data=a.semantic_data,
           text_encoder=a.text_encoder, synth_pool=a.synth_pool)

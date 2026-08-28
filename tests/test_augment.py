@@ -1,8 +1,10 @@
+import json
+
 import torch
 
 from yiwm.augment import (
-    consistency_filter, generate_situations, make_structure_rows,
-    paraphrase_fallback, structure_to_prompt,
+    build_semantic_jsonl, consistency_filter, generate_situations,
+    make_structure_rows, mock_llm_fn, paraphrase_fallback, structure_to_prompt,
 )
 from yiwm.model import YiWorldModel
 
@@ -62,3 +64,39 @@ def test_consistency_filter_mechanics():
 
     keep2, _, _ = consistency_filter(texts, rows, model, "hash", min_sign_match=1.0)
     assert keep2.sum() <= keep.sum()         # stricter threshold keeps no more
+
+
+def test_jsonl_build_and_train_roundtrip(tmp_path):
+    from yiwm.data import SemanticJsonlDataset
+    from yiwm.losses import yi_world_loss
+
+    path = str(tmp_path / "sem.jsonl")
+    stats = build_semantic_jsonl(path, n=64, llm_fn=mock_llm_fn, filter_model=None, seed=1)
+    assert stats["written"] == 64 and stats["dropped_gen"] == 0
+    lines = [json.loads(x) for x in open(path, encoding="utf-8")]
+    assert len(lines) == 64
+    assert set(lines[0]) >= {"text", "ben_k", "force", "moving", "action", "timing"}
+
+    ds = SemanticJsonlDataset(path, "hash")
+    assert ds.obs_dim == 256
+    b = ds(16, seed=0)
+    assert b["obs"].shape == (16, 256) and b["hex"].shape == (16,)
+    assert b["entity_states"].shape == (16, 5, 6)
+
+    m = YiWorldModel(obs_dim=ds.obs_dim)
+    opt = torch.optim.Adam(m.parameters(), lr=1e-3)
+    l0 = yi_world_loss(m(b["obs"], b["entity_states"], b["entity_cats"], b["entity_adj"]), b)["total"]
+    for _ in range(30):
+        bb = ds(32, seed=None)
+        out = m(bb["obs"], bb["entity_states"], bb["entity_cats"], bb["entity_adj"])
+        L = yi_world_loss(out, bb)
+        opt.zero_grad(); L["total"].backward(); opt.step()
+    l1 = yi_world_loss(m(b["obs"], b["entity_states"], b["entity_cats"], b["entity_adj"]), b)["total"]
+    assert l1 < l0                           # loss goes down on the semantic source
+
+
+def test_build_semantic_jsonl_incremental_append(tmp_path):
+    path = str(tmp_path / "inc.jsonl")
+    build_semantic_jsonl(path, n=10, llm_fn=mock_llm_fn, seed=0)
+    build_semantic_jsonl(path, n=10, llm_fn=mock_llm_fn, seed=99, append=True)
+    assert sum(1 for _ in open(path, encoding="utf-8")) == 20

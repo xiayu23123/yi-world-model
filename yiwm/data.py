@@ -125,6 +125,58 @@ def make_batch(batch_size: int, seed: int | None = None, device: str = "cpu") ->
     }
 
 
+class SemanticJsonlDataset:
+    """Batch source backed by a JSONL file from `augment.build_semantic_jsonl`.
+
+    Each line: {text, ben_k, force, moving, action, timing, ...}. Texts are
+    embedded ONCE at construction with the given (frozen) text encoder; entity
+    tensors are rebuilt from ben_k + force. Yields the same dict keys as
+    `synth.make_synth_batch`, so train.py / losses.py consume it unchanged.
+    Training on this only moves the `YinYangEncoder` head (the obs encoder is
+    frozen by construction).
+    """
+
+    def __init__(self, path: str, text_encoder: str = "hash"):
+        import json
+
+        from .synth import _entities
+        from .textenc import get_text_encoder
+
+        recs = [json.loads(x) for x in open(path, encoding="utf-8") if x.strip()]
+        if not recs:
+            raise ValueError(f"{path} has no rows")
+        enc_fn, self.obs_dim = get_text_encoder(text_encoder)
+
+        self.texts = [r["text"] for r in recs]
+        self.obs = enc_fn(self.texts)                                     # [N, obs_dim]
+        ben_k = torch.tensor([r["ben_k"] for r in recs])
+        force = torch.tensor([r["force"] for r in recs], dtype=torch.float32)
+        moving = torch.tensor([r["moving"] for r in recs], dtype=torch.float32)
+        cats, st, adj = _entities(ben_k, force)
+        pow6 = 2 ** torch.arange(6)
+        self.data = {
+            "obs": self.obs,
+            "entity_states": st,
+            "entity_cats": cats,
+            "entity_adj": adj,
+            "hex": ben_k,
+            "hex_next": ben_k ^ (moving.long() * pow6).sum(1),
+            "moving": moving,
+            "action": torch.tensor([r["action"] for r in recs]),
+            "yao_target": force,
+            "timing": torch.tensor([r["timing"] for r in recs]),
+        }
+        self.n = len(recs)
+
+    def __call__(self, batch_size: int, seed: int | None = None, device: str = "cpu") -> dict:
+        g = torch.Generator()
+        g.manual_seed(seed) if seed is not None else g.seed()
+        idx = torch.randint(0, self.n, (batch_size,), generator=g)
+        out = {k: v[idx].to(device) for k, v in self.data.items()}
+        out["text"] = [self.texts[i] for i in idx.tolist()]
+        return out
+
+
 def get_dataset(name: str, text_encoder: str = "hash", pool_size: int = 0):
     """name in {"eco", "synth"} -> (batch_fn, obs_dim).
 

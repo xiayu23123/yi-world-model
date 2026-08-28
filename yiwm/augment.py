@@ -31,8 +31,10 @@ SYSTEM_PROMPT = (
     "你把一个「处境的结构描述」改写成一段真实、具体的现代生活情境（80-160 字）。"
     "严格禁止出现：任何卦名（乾、坤、屯……）、爻位词（初/二/三/四/五/上、九、六、爻）、"
     "「阴/阳/阴气/阳气/当位/失位/得中/相应/五行/时位」等术语。"
-    "只用普通人会说的话，描述一个具体的人在具体场景里的处境、动作倾向、外部约束。"
-    "不要给建议，不要点评，不要用「他应该」。直接叙述。"
+    "只描述态势结构：具体的人、具体场景、他的处境、动作倾向、资源状态、外部约束。"
+    "不要讲道理，不要给建议，不要点评，不要用「他应该」。"
+    "禁止鸡汤词：努力、坚持、善良、正直、成功、正能量、天道酬勤、心态、格局。"
+    "直接叙述。"
 )
 
 _STAGE_HINT = {
@@ -86,6 +88,32 @@ def anthropic_llm_fn(model: str | None = None, max_tokens: int = 400):
     return gen
 
 
+def mock_llm_fn(prompt: str) -> str:
+    """Deterministic placeholder for pipeline tests. Not real generation."""
+    h = abs(hash(prompt)) % 1000
+    return (
+        f"某人正在处理一件事，手上的条件时松时紧，外部关注度不高。"
+        f"他在权衡要不要现在发力，还是再等等看。编号 {h}。"
+    )
+
+
+def ollama_llm_fn(model: str = "llama3.1:8b", base_url: str = "http://localhost:11434",
+                  timeout: float = 60.0):
+    """Local offline generation via Ollama. Needs `requests` and a running daemon."""
+    import requests
+
+    def gen(prompt: str) -> str:
+        r = requests.post(
+            f"{base_url}/api/generate",
+            json={"model": model, "prompt": SYSTEM_PROMPT + "\n\n" + prompt, "stream": False},
+            timeout=timeout,
+        )
+        r.raise_for_status()
+        return r.json()["response"].strip()
+
+    return gen
+
+
 _SWAPS = [
     ("推进", "推动"), ("资源", "人手和预算"), ("稳步", "一点点"), ("犹豫", "拿不定主意"),
     ("盛极", "风头正劲"), ("反噬", "反弹"), ("外部", "上面"), ("薄弱", "撑不住"),
@@ -119,7 +147,7 @@ def paraphrase_fallback(base_texts, seed: int | None = None):
 # --------------------------------------------------------------------------- #
 def make_structure_rows(n: int, seed: int = 0) -> list[dict]:
     """Sample n synth structural rows (no text, no obs) for prompting."""
-    from .synth import _force, _moving, _timing
+    from .synth import _action, _force, _moving, _timing
 
     g = torch.Generator()
     g.manual_seed(seed)
@@ -128,11 +156,13 @@ def make_structure_rows(n: int, seed: int = 0) -> list[dict]:
     force0 = _force(bits, dw, dz, yy, g)
     mask, force = _moving(bits, dw, dz, yy, force0, g)
     timing = _timing(bits, mask)
+    action = _action(timing, dw, yy, mask)
     rows = []
     for i in range(n):
         rows.append({
             "ben_k": int(ben_k[i]),
             "timing": int(timing[i]),
+            "action": int(action[i]),
             "dangwei": dw[i].tolist(),
             "youying": yy[i].tolist(),
             "force": force[i].tolist(),
@@ -188,3 +218,57 @@ def consistency_filter(texts, rows, model, text_encoder="hash", min_sign_match: 
         hexo[i] = int(recovered[k])
         smo[i] = float(sm[k])
     return keep, hexo, smo
+
+
+def build_semantic_jsonl(
+    path: str,
+    n: int,
+    llm_fn,
+    filter_model=None,
+    text_encoder: str = "hash",
+    min_sign_match: float = 5 / 6,
+    seed: int = 0,
+    append: bool = False,
+) -> dict:
+    """Generate n situations, optionally consistency-filter, write one JSON object
+    per line: {text, ben_k, force, moving, action, timing, sign_match}.
+
+    Writes incrementally (one line per accepted sample), so a crash after k
+    samples keeps the first k. Returns {"written": int, "attempted": int,
+    "dropped_gen": int, "dropped_filter": int}.
+    """
+    import json
+
+    rows = make_structure_rows(n, seed=seed)
+    texts = generate_situations(rows, llm_fn, on_error="skip")
+
+    if filter_model is not None:
+        keep, _, sm = consistency_filter(texts, rows, filter_model, text_encoder, min_sign_match)
+    else:
+        keep = torch.tensor([t is not None for t in texts])
+        sm = torch.full((n,), float("nan"))
+
+    dropped_gen = sum(t is None for t in texts)
+    written = 0
+    with open(path, "a" if append else "w", encoding="utf-8") as f:
+        for i, (row, text) in enumerate(zip(rows, texts)):
+            if not keep[i]:
+                continue
+            rec = {
+                "text": text,
+                "ben_k": row["ben_k"],
+                "force": row["force"],
+                "moving": row["moving"],
+                "action": row["action"],
+                "timing": row["timing"],
+                "sign_match": None if sm[i].isnan() else round(float(sm[i]), 3),
+            }
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            f.flush()
+            written += 1
+    return {
+        "written": written,
+        "attempted": n,
+        "dropped_gen": dropped_gen,
+        "dropped_filter": n - dropped_gen - written,
+    }
