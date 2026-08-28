@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Trained weights (run `python -m yiwm.train` to regenerate)
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+# Local Hugging Face model cache (for --text-encoder minilm/minilm-ml)
+cache/
+.huggingface/
+hf_*/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store

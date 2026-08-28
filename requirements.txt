@@ -1,0 +1,7 @@
+torch>=2.0
+pytest>=7.0
+
+# optional -- only for `--text-encoder minilm|minilm-ml` (default is the
+# dependency-free `hash` encoder). The model weights are downloaded once, or
+# point YIWM_ST_CACHE / HF_HOME at a local HF hub cache for offline use.
+# sentence-transformers>=2.2
