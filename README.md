@@ -87,7 +87,7 @@ inference-mode flag); no gradient can reach the encoder — only the downstream
 |---|---|---|
 | `hash` (default) | 256 | signed feature-hashing bag of char uni/bi-grams. Offline, deterministic, zero deps. **No synonym generalization** — "融资" and "筹资" hash apart. |
 | `minilm` | 384 | frozen `all-MiniLM-L6-v2`. English-trained: collapses the Chinese templates (`sim(融资紧缺, 筹资困难) ≈ 1.0`) → **regresses** 本卦. |
-| `minilm-ml` | 384 | frozen `paraphrase-multilingual-MiniLM-L12-v2`. Real Chinese: `sim(融资/筹资)=0.87`, `sim(融资/天气)=-0.12`, zero-shot `sim(蛰伏/潜藏)=0.67`. Recovers 本卦 to ~0.99. |
+| `minilm-ml` | 384 | frozen `paraphrase-multilingual-MiniLM-L12-v2`. Real Chinese: `sim(融资/筹资)=0.87`, `sim(融资/天气)=-0.12`, zero-shot `sim(蛰伏/潜藏)=0.67`. At matched budget (9k steps, `--synth-pool 16000`): 本卦 0.996 / moving 0.966 / 之卦 ~0.91 / 行动 ~0.96 — near-parity with `hash`, 行动 trails ~3pts. |
 
 `textenc.py` auto-detects a local HF hub cache at import time (`$YIWM_ST_CACHE`,
 `$HF_HOME`, or `./cache/`) and sets `HF_HUB_OFFLINE=1` when found. Sentence
