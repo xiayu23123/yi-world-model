@@ -46,7 +46,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 55 passed
+pytest -q                                            # 57 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -321,14 +321,34 @@ data. Markets are low-signal/high-noise; there is no predictive skill here.
 of the 6 indicators as a 6-bit 卦 — a *structural label* for "what the tape
 looks like now" (late-2024 AAPL oscillates 履 ⇄ 中孚), no forecast, no training.
 
+## Causal environment (`tiny_kingdom.py`)
+
+`TinyKingdom` — a minimal env where actions genuinely change the next state
+(resource / morale / threat, 5 actions with fixed causal effects + process
+noise). This is what the market series lacks. `python -m yiwm.tiny_kingdom`
+collects random-action trajectories, fits `LearnedTransition(yao, action)`, and
+runs two checks:
+
+| check | result | verdict |
+|---|---|---|
+| transition MSE | 0.0003 (27k transitions) | fits the causal map |
+| action sensitivity `|f(y,进) − f(y,守)|` | **0.083** (> 0.05) | ✅ **learned action-dependent dynamics** |
+| naïve MPC (imagine 3, pick max-value) vs random | −9.8 vs −5.6 | ❌ **worse than random** |
+
+So given a real causal environment, the transition net **does** learn action
+influence — the thing passive market data cannot teach. Naïve MPC on top
+**fails**: the value head is an action-blind immediate-reward regressor, and the
+reward here depends on the action taken (`1.0` iff it matches the 时位's proper
+action). Planning needs a Q-function (state+action → discounted return) or a
+state-only reward — a value-learning problem, not a transition problem.
+
 ## Known limits / next
 
 - 之卦 `eco` residual ~15% is observation aliasing — the joint head took out the
   independence-assumption part; the rest needs a richer obs, not architecture.
-- **Action influence is untested** — passive price data has no causal action
-  effect (next state doesn't depend on whether *you* traded), so the market
-  transition drops the action input. Learning action effects needs portfolio /
-  simulator trajectories.
+- **MPC planning** needs a proper Q-head; the current `tiny_kingdom` value head
+  can't drive action selection. Transition + causality are in place; the
+  planner is the open piece.
 - No real 爻辞 / 彖 / 象 semantics; no real "situation → 卦" labelled data. This is
   the main gap between a working prototype and "actually understands the I Ching".
   `augment.py` narrows the diversity gap but not the aliasing gap.
