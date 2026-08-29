@@ -5,3 +5,6 @@ pytest>=7.0
 # dependency-free `hash` encoder). The model weights are downloaded once, or
 # point YIWM_ST_CACHE / HF_HOME at a local HF hub cache for offline use.
 # sentence-transformers>=2.2
+
+# optional -- real-data transition experiment (yiwm.market_transition)
+# yfinance>=0.2

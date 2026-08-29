@@ -46,7 +46,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 52 passed
+pytest -q                                            # 54 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -295,14 +295,33 @@ reproducible by a continuous map — not an artefact of the flip. It is still a
 what would make the transition net learn something the flip rule doesn't
 already contain.
 
+## Real-data transition (`market_adapter.py` / `market_transition.py`)
+
+The P3 limit was "distillation, needs a real env". `market_adapter` maps a price
+series to `R^6` (6 backward-looking indicators, **no look-ahead**);
+`market_transition` learns `f: yao_t → yao_{t+1}` on it. AAPL 2015–2024,
+held-out 2022–2024:
+
+| check | result |
+|---|---|
+| 1-step MSE vs persistence | 0.023 vs 0.027 — beats "stays put" by ~17% |
+| momentum direction hit | 0.865 vs 0.861 — **no directional edge** (features too autocorrelated) |
+| gap vs `ChangeEngine` flip | **0.23** — learned its *own* map, not the coded rule |
+| bootstrap (iterate 30 steps) | bounded, drifts (~0.05), no fixed point |
+
+So a transition net **does** learn a real, distinct map when given a real
+environment — the P3 "is it just a distillation" question resolves *no* on
+external data. It has no tradeable predictive skill (nor is that the goal —
+this is methodology; no backtest, no signal). Needs `pip install yfinance`.
+
 ## Known limits / next
 
 - 之卦 `eco` residual ~15% is observation aliasing — the joint head took out the
   independence-assumption part; the rest needs a richer obs, not architecture.
-- **Still not a full world model:** `LearnedTransition` distils the existing
-  rule; without a toy environment (real state/action/reward trajectories) it
-  can only reproduce what `ChangeEngine` already does. That env + imagination
-  planning is the remaining major piece.
+- **Action influence is untested** — passive price data has no causal action
+  effect (next state doesn't depend on whether *you* traded), so the market
+  transition drops the action input. Learning action effects needs portfolio /
+  simulator trajectories.
 - No real 爻辞 / 彖 / 象 semantics; no real "situation → 卦" labelled data. This is
   the main gap between a working prototype and "actually understands the I Ching".
   `augment.py` narrows the diversity gap but not the aliasing gap.
