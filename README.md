@@ -267,6 +267,11 @@ the 老爻 sits on the adaptive threshold. **三爻 is the most fragile** (match
 易 lore: 三多凶, the awkward top-of-lower-trigram slot); 初/二爻 the most stable.
 `eco` (aliased obs) is more fragile throughout (之卦 flip ~0.20–0.31 @σ.05).
 
+`demo --structured-input` surfaces this per-input: it perturbs the force ±0.05
+and, if the **action** recommendation flips >25% of the time, prints a
+"高敏感区" warning (三爻 inputs trip it at ~42%). `rollout_stats.json` records
+`cycle_len` / `cycle_members` for each 卦 whose rollout is periodic.
+
 ## Known limits / next
 
 - 之卦 `eco` residual ~15% is observation aliasing — the joint head took out the

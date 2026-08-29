@@ -66,6 +66,7 @@ def analyse(ckpt: str, steps: int = 20, sigmas=(0.05, 0.10, 0.20), trials: int =
                 "stop": traj[-1].get("stop", "maxsteps"),
                 "terminal_hex": traj[-1]["hex_next_k"],
                 "decay": round(float(decay), 3),
+                "cycle_members": [_kw(x) for x in traj[-1].get("cycle_members", [])],
             })
 
             # --- perturbation at this state ---------------------------------
@@ -90,6 +91,8 @@ def analyse(ckpt: str, steps: int = 20, sigmas=(0.05, 0.10, 0.20), trials: int =
     for k in range(64):
         rs = per_hex[k]
         terms = Counter(_kw(r["terminal_hex"]) for r in rs)
+        cyc = Counter(tuple(r["cycle_members"]) for r in rs if r["cycle_members"])
+        top_cyc = cyc.most_common(1)[0][0] if cyc else []
         stats[_kw(k)] = {
             "mean_steps": round(sum(r["n_steps"] for r in rs) / 6, 2),
             "cycle_frac": round(sum(r["stop"].startswith("cycle") for r in rs) / 6, 2),
@@ -97,6 +100,8 @@ def analyse(ckpt: str, steps: int = 20, sigmas=(0.05, 0.10, 0.20), trials: int =
             "mean_decay": round(sum(r["decay"] for r in rs) / 6, 3),
             "terminal_top": terms.most_common(1)[0][0],
             "self_attractor": terms.most_common(1)[0][0] == _kw(k),
+            "cycle_len": len(top_cyc),
+            "cycle_members": list(top_cyc),
         }
 
     out = Path(ckpt).with_name("rollout_stats.json")

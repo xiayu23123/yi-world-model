@@ -120,6 +120,8 @@ def run_structured(ckpt: str):
     print(f"\n之卦  {r['zhi_hex'][0]:2d} {r['zhi_hex'][1]}")
     print(r["zhi_render"])
     print(f"\n行动: {r['action']}")
+    if r["fragility"]:
+        print(f"\n{r['fragility']}")
 
 
 if __name__ == "__main__":

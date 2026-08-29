@@ -91,6 +91,21 @@ def structured_infer(choices: dict, model) -> dict:
     dummy_obs = torch.zeros(1, model.encoder.net[0].in_features)
     o = model(dummy_obs, st, cats, adj, hard=True, yao_override=force.unsqueeze(0))
     a = o["policy"]["action_logits"][0].softmax(0)
+    base_act = int(a.argmax())
+
+    # fragility: how unstable is the action recommendation under ±0.05 force noise?
+    flips = 0
+    for _ in range(24):
+        op = model(dummy_obs, st, cats, adj, hard=True,
+                   yao_override=(force + 0.05 * torch.randn(6)).unsqueeze(0))
+        flips += int(op["policy"]["action_logits"].argmax(1).item() != base_act)
+    frac = flips / 24
+    if frac > 0.25:
+        frag = f"⚠️ 高敏感区（action 翻转率 {frac:.0%}）：情境细节的微小差别可能改变建议，请确认关键信息是否遗漏。"
+    elif frac > 0.12:
+        frag = f"ℹ️ 中等敏感（action 翻转率 {frac:.0%}）：建议核对资源 / 阶段判断。"
+    else:
+        frag = None
 
     def kw(k):
         j = BINARY_TO_KING_WEN[k].item()
@@ -104,6 +119,7 @@ def structured_infer(choices: dict, model) -> dict:
         "zhi_hex": kw(zhi_k),
         "zhi_render": render_hexagram(zhi_k),
         "action": {ACTIONS_CN[i]: round(a[i].item(), 2) for i in range(5)},
+        "fragility": frag,
     }
 
 
