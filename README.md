@@ -51,6 +51,7 @@ python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
 python -m yiwm.analysis --ckpt checkpoints/yiwm.pt        # error decomposition + relation gates
+python -m yiwm.reproduce --seeds 5                        # 4-stage world-model arc, mean±std (~12 min)
 ```
 
 ## Results (converged)
@@ -384,26 +385,37 @@ sensitivity ~0.014.
 | stage 2 — CNN + **DQN** objective | 0.014 |
 | **wm-pretrain — CNN + dynamics-first objective** | **0.226** |
 
-~16× recovery, latent not collapsed (across-state std 1.3). **The Stage-2
-failure was entirely the training objective** — a Q-shaped latent is
-*policy-relevant*, not *dynamics-complete*. Encoder capacity and the R^6
+**5-seed reproduction** (`python -m yiwm.reproduce`, all on Kingdom2D 5×5):
+
+| step | transition action-sensitivity |
+|---|---|
+| stage 1 — hand R^6 | 0.026 ± 0.002 |
+| stage 2 — CNN + **DQN** latent | 0.013 ± 0.004 |
+| **JEPA β=1** (dynamics-first + var reg) | **0.238 ± 0.066** |
+| JEPA β=0 (ablation: no var reg) | 0.001 ± 0.001 |
+
+latent across-state std: **β=1 → 1.29 ± 0.04**, β=0 → **0.00 ± 0.00** (collapsed
+every seed). stage-2 max (0.017) < JEPA-β=1 min (0.153) → **zero overlap**, the
+separation is not seed luck. The **variance regularizer is causally necessary** —
+without it the JEPA latent collapses to a constant on all 5 seeds. Stage-2's
+failure was entirely the training objective: a Q-shaped latent is
+*policy-relevant*, not *dynamics-complete*; encoder capacity and the R^6
 bottleneck were never the issue.
 
 **`wm_pipeline.py` — full two-stage pipeline, end to end.** wm-pretrain →
 **freeze** encoder + transition → DQN `Q(dyn, action)` on the frozen 32-d latent
 → compare policies:
 
-| policy | mean return | vs random |
-|---|---|---|
-| random | +96 | — |
-| **model-free greedy `argmax_a Q(z,a)`** | **+163** | **+71%** |
-| model-based MPC (roll the frozen transition 4 steps, score with Q) | +159 | +66% |
+| policy | vs random (5 seeds) |
+|---|---|
+| **model-free greedy `argmax_a Q(z,a)`** | **+69% ± 1** |
+| model-based MPC (roll the frozen transition 4 steps, score with Q) | greedy **−13 ± 9** return, all 5 seeds |
 
-Encoder + transition provably frozen (transition sensitivity 0.225 → 0.231
-across the whole Q phase). **The pipeline works**: a dynamics-first latent
-*does* support policy learning (+71% ≫ the +20% bar). MPC ≈ greedy here — on a
-5×5 grid with a good Q, 4-step rollout error cancels the lookahead benefit;
-it's not a win, but not broken.
+Encoder + transition provably frozen (transition sensitivity unchanged across the
+Q phase). **The pipeline works**: a dynamics-first latent supports policy
+learning, +69% ≫ the +20% bar, ±1% over seeds. **MPC *loses* to greedy** on
+this grid, every seed — 4-step rollout error outweighs the lookahead when Q is
+already good. Model-based planning needs a bigger env / longer horizon to pay off.
 
 ## Known limits / next
 
