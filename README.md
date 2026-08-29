@@ -44,7 +44,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 50 passed
+pytest -q                                            # 52 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -136,7 +136,8 @@ soft labels help only when `yao_target` is on a common scale (synth), and hurt
 | `model.py` `moving_head` | 21-way joint 动爻-mask classifier + `hex_logits_next_joint` — the better 之卦 path (see the wall discussion above) |
 | `policy.py` | `TemporalPositionalPolicy` — 当位/不当位-weighted → {进 退 守 变 待} + intensity |
 | `structured_input.py` | 4-question rule map → yao-force; `demo --structured-input` (encoder bypassed via `yao_override`) |
-| `dynamics.py` | 64-卦 rollout + 384-爻 perturbation batch → `rollout_stats.json` / `perturbation.csv` + console portrait |
+| `dynamics.py` | 64-卦 rollout + 384-爻 perturbation batch → `rollout_stats.json` / `perturbation.csv` + console portrait; `--no-decay` veto test |
+| `transition.py` | `LearnedTransition` MLP `f: (yao, action) → yao'` distilled from the model's one-step rule; `rollout_learned` for the smooth-map comparison |
 | `model.py` | `YiWorldModel` assembly + King Wen conversion |
 | `losses.py` | multi-task loss: 本卦 CE (opt. soft) / 之卦 CE / 动爻 BCE + pairwise ranking / 行动 CE / `L_yao` Huber / 吉凶 / 五行 balance |
 | `data.py` / `synth.py` / `textenc.py` | `eco` generator / `synth` generator + `SynthPool` / pluggable frozen text encoders |
@@ -272,15 +273,34 @@ and, if the **action** recommendation flips >25% of the time, prints a
 "高敏感区" warning (三爻 inputs trip it at ~42%). `rollout_stats.json` records
 `cycle_len` / `cycle_members` for each 卦 whose rollout is periodic.
 
+## Is the dynamics intrinsic? (`--no-decay` veto + `transition.py`)
+
+**Veto test** — `python -m yiwm.dynamics --no-decay --steps 100` sets the
+rollout decay to 1.0 (`|force|` conserved). Over all 384 start states: **100%
+cycle, 0 divergence, 0 freeze**, cycle lengths 1–3 (period-1: 226, period-2:
+155). Decay was *masking* the periodicity, not creating it — the iterated
+`ChangeEngine + moving_head` is a bounded finite-state map with short,
+structured attractor cycles (`乾 → 大壯 → 大畜 → 泰 ⇄ 大畜`).
+
+**Learned transition** (`transition.py`) — `LearnedTransition` is an MLP
+`f: (yao, action) → yao'` distilled from the model's own one-step rule (MSE
+≈ 0.015). Rolling out with the *smooth* map instead of the discrete flip:
+cycle-length distribution matches (`{1:276, 2:101, 3:6}` vs `{1:245, 2:132}`),
+**period agreement 75%**, same attractors (乾九四 → 泰↔大畜 either way, shorter
+transient). So the periodicity is a property of the learned dynamics,
+reproducible by a continuous map — not an artefact of the flip. It is still a
+*distillation*, not new physics; a real environment (state/action/reward) is
+what would make the transition net learn something the flip rule doesn't
+already contain.
+
 ## Known limits / next
 
 - 之卦 `eco` residual ~15% is observation aliasing — the joint head took out the
   independence-assumption part; the rest needs a richer obs, not architecture.
-- **Not yet a full world model:** the 变卦 rule is hard-coded (flip the 老爻),
-  not a *learned* state-transition `f: R^6 → R^6`. `rollout` gives a time axis
-  but on that fixed rule. A learned transition net + a toy environment (state,
-  action, reward) + imagination-based planning is the next major piece — its
-  own build, not a bolt-on.
+- **Still not a full world model:** `LearnedTransition` distils the existing
+  rule; without a toy environment (real state/action/reward trajectories) it
+  can only reproduce what `ChangeEngine` already does. That env + imagination
+  planning is the remaining major piece.
 - No real 爻辞 / 彖 / 象 semantics; no real "situation → 卦" labelled data. This is
   the main gap between a working prototype and "actually understands the I Ching".
   `augment.py` narrows the diversity gap but not the aliasing gap.

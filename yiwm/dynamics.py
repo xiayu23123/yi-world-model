@@ -42,7 +42,8 @@ def _load(ckpt: str):
 
 
 @torch.no_grad()
-def analyse(ckpt: str, steps: int = 20, sigmas=(0.05, 0.10, 0.20), trials: int = 12):
+def analyse(ckpt: str, steps: int = 20, sigmas=(0.05, 0.10, 0.20), trials: int = 12,
+           decay: float = 0.7):
     model, obs_dim = _load(ckpt)
     dummy = torch.zeros(1, obs_dim)
 
@@ -56,7 +57,7 @@ def analyse(ckpt: str, steps: int = 20, sigmas=(0.05, 0.10, 0.20), trials: int =
             y = torch.tensor(force).view(1, 6)
 
             # --- rollout from this standard state -----------------------------
-            traj = model.rollout(y[0], steps=steps)
+            traj = model.rollout(y[0], steps=steps, decay=decay)
             mags = [s["mag"] for s in traj]
             n = len(traj)
             decay = (mags[-1] / mags[0]) ** (1 / max(n - 1, 1)) if mags[0] > 0 else 1.0
@@ -138,5 +139,7 @@ if __name__ == "__main__":
     ap.add_argument("--ckpt", default="checkpoints/yiwm_synth.pt")
     ap.add_argument("--steps", type=int, default=20)
     ap.add_argument("--trials", type=int, default=12)
+    ap.add_argument("--no-decay", action="store_true",
+                    help="decay=1.0 -- veto test: is the periodicity intrinsic or a decay artifact?")
     a = ap.parse_args()
-    analyse(a.ckpt, a.steps, trials=a.trials)
+    analyse(a.ckpt, a.steps, trials=a.trials, decay=1.0 if a.no_decay else 0.7)

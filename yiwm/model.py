@@ -132,7 +132,7 @@ class YiWorldModel(nn.Module):
             if k in seen:
                 out[-1]["stop"] = f"cycle(len {t - seen[k]})"
                 out[-1]["cycle_len"] = t - seen[k]
-                out[-1]["cycle_members"] = [s["hex_k"] for s in out[seen[k]:]]
+                out[-1]["cycle_members"] = [s["hex_k"] for s in out[seen[k]:t]]
                 break
             seen[k] = t
             y = y * (1 - 2 * mask) * decay                           # flip 老爻, decay all
