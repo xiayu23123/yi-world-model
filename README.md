@@ -126,7 +126,7 @@ soft labels help only when `yao_target` is on a common scale (synth), and hurt
 | `model.py` | `YiWorldModel` assembly + King Wen conversion |
 | `losses.py` | multi-task loss: 本卦 CE (opt. soft) / 之卦 CE / 动爻 BCE + pairwise ranking / 行动 CE / `L_yao` Huber / 吉凶 / 五行 balance |
 | `data.py` / `synth.py` / `textenc.py` | `eco` generator / `synth` generator + `SynthPool` / pluggable frozen text encoders |
-| `augment.py` | LLM back-inversion: jargon-free prompt, `str->str` backends (anthropic / ollama / mock / paraphrase), projector consistency filter, crash-safe `build_semantic_jsonl` / `build_from_seed` |
+| `augment.py` | LLM back-inversion: jargon-free prompt, `str->str` backends (anthropic / deepseek / glm / ollama / mock / paraphrase — set the matching `*_API_KEY` env var), projector consistency filter, crash-safe `build_semantic_jsonl` / `build_from_seed` |
 | `seed.py` | `build_yao_seed` — 384-line (64×6) skeleton with all structural fields derived (yao_target, moving, timing, action, 初九/六二… names); text fields left blank |
 | `canonical.py` | `import_canonical` — fills `canonical_text` (**all 384 爻辞**, transcribed from ctext.org, traditional), `modern_text` (`MODERN_P0` 乾坤 + `MODERN_P1` 既濟/未濟/泰/否 = 36 rows), and `P0_ACTION` overrides where the structure-only `_action` misreads an anchor; `extra=` / `modern_extra=` to override |
 | `train.py` / `demo.py` / `analysis.py` | training loop / one-shot visualization / 之卦 error decomposition |

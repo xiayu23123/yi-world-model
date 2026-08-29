@@ -99,14 +99,57 @@ def mock_llm_fn(prompt: str) -> str:
     )
 
 
+def _openai_compat_llm_fn(base_url: str, key_env: str, model: str, temperature: float = 0.8):
+    """Generic OpenAI-compatible /chat/completions backend (DeepSeek, GLM, ...)."""
+    import os
+
+    import requests
+
+    key = os.environ.get(key_env)
+    if not key:
+        raise RuntimeError(f"{key_env} not set")
+
+    def gen(prompt: str) -> str:
+        r = requests.post(
+            base_url.rstrip("/") + "/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={
+                "model": model, "stream": False, "max_tokens": 400, "temperature": temperature,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+            },
+            timeout=90,
+        )
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"].strip()
+
+    return gen
+
+
+def deepseek_llm_fn(model: str = "deepseek-chat"):
+    return _openai_compat_llm_fn("https://api.deepseek.com/v1", "DEEPSEEK_API_KEY", model)
+
+
+def glm_llm_fn(model: str = "glm-4-flash"):
+    return _openai_compat_llm_fn(
+        "https://open.bigmodel.cn/api/paas/v4", "ZHIPU_API_KEY", model
+    )
+
+
 def get_llm_fn(name: str, model: str | None = None):
-    """name -> a `str -> str` generator. 'mock' | 'anthropic' | 'ollama'."""
+    """name -> a `str -> str` generator."""
     if name == "mock":
         return mock_llm_fn
     if name == "anthropic":
         return anthropic_llm_fn(model=model)
     if name == "ollama":
         return ollama_llm_fn(model=model or "llama3.1:8b")
+    if name == "deepseek":
+        return deepseek_llm_fn(model or "deepseek-chat")
+    if name == "glm":
+        return glm_llm_fn(model or "glm-4-flash")
     raise ValueError(f"unknown --llm {name!r}")
 
 
@@ -323,43 +366,38 @@ def build_from_seed(
     filled = [s for s in seeds if s.get(text_field, "").strip()]
     prompt_tpl = _CANONICAL_PROMPT if text_field == "canonical_text" else _VARIANT_PROMPT
 
-    texts, rows = [], []
-    for s in filled:
-        src = s[text_field].strip()
-        for _ in range(n_variants):
-            try:
-                texts.append(llm_fn(prompt_tpl.format(src=src)))
-            except Exception:  # noqa: BLE001
-                texts.append(None)
-            rows.append({
+    attempted = written = 0
+    with open(out_path, "w", encoding="utf-8") as f:            # incremental: crash after k keeps k
+        for s in filled:
+            src = s[text_field].strip()
+            row = {
                 "ben_k": s["hex_index"],
                 "force": s["yao_target"],
                 "moving": s["moving"],
                 "action": ACTIONS.index(s["action"]) if s["action"] in ACTIONS else 2,
                 "timing": TIMINGS.index(s["timing"]) if s["timing"] in TIMINGS else 0,
-            })
-
-    if filter_model is not None:
-        keep, _, sm = consistency_filter(texts, rows, filter_model, text_encoder, min_sign_match)
-    else:
-        keep = torch.tensor([t is not None for t in texts])
-        sm = torch.full((len(texts),), float("nan"))
-
-    written = 0
-    with open(out_path, "w", encoding="utf-8") as f:
-        for i, (row, text) in enumerate(zip(rows, texts)):
-            if not keep[i]:
-                continue
-            f.write(json.dumps({**{"text": text}, **row,
-                                "sign_match": None if sm[i].isnan() else round(float(sm[i]), 3)},
-                               ensure_ascii=False) + "\n")
-            f.flush()
-            written += 1
+            }
+            for _ in range(n_variants):
+                attempted += 1
+                try:
+                    text = llm_fn(prompt_tpl.format(src=src))
+                except Exception:  # noqa: BLE001
+                    continue
+                sm = None
+                if filter_model is not None:
+                    keep, _, smv = consistency_filter([text], [row], filter_model,
+                                                      text_encoder, min_sign_match)
+                    if not keep[0]:
+                        continue
+                    sm = round(float(smv[0]), 3)
+                f.write(json.dumps({"text": text, **row, "sign_match": sm}, ensure_ascii=False) + "\n")
+                f.flush()
+                written += 1
     return {
         "seeds_total": len(seeds),
         "seeds_filled": len(filled),
         "skipped_no_text": len(seeds) - len(filled),
-        "variants_attempted": len(texts),
+        "variants_attempted": attempted,
         "written": written,
     }
 
@@ -379,25 +417,62 @@ def _load_filter_model(ckpt: str):
     return m, te
 
 
+@torch.no_grad()
+def filter_jsonl(in_path: str, ckpt: str, out_path: str | None = None,
+                 min_sign_match: float = 4 / 6) -> dict:
+    """Score an already-generated JSONL against a trained model: report the
+    sign-match distribution, and (if `out_path`) write the rows that clear
+    `min_sign_match`. Diagnostic -- lets you pick a threshold instead of baking
+    one into generation. A low mean means the reference model can't read this
+    text (out of distribution), not that the text is bad."""
+    import json
+
+    recs = [json.loads(x) for x in open(in_path, encoding="utf-8") if x.strip()]
+    model, te = _load_filter_model(ckpt)
+    texts = [r["text"] for r in recs]
+    rows = [{"ben_k": r["ben_k"]} for r in recs]
+    _, _, sm = consistency_filter(texts, rows, model, te, min_sign_match=0.0)
+
+    buckets = {}
+    for thr in (0.5, 4 / 6, 5 / 6, 1.0):
+        buckets[round(thr, 3)] = int((sm >= thr).sum())
+    if out_path:
+        with open(out_path, "w", encoding="utf-8") as f:
+            for r, s in zip(recs, sm.tolist()):
+                if s >= min_sign_match:
+                    f.write(json.dumps({**r, "sign_match": round(s, 3)}, ensure_ascii=False) + "\n")
+    return {
+        "total": len(recs),
+        "mean_sign_match": round(float(sm.mean()), 3),
+        "pass_at": buckets,
+        "written": buckets.get(round(min_sign_match, 3)) if out_path else None,
+    }
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="expand a filled yao_seed.json into a training JSONL")
-    ap.add_argument("--seed-file", required=True)
+    ap.add_argument("--seed-file")
     ap.add_argument("--output", required=True)
     ap.add_argument("--n-variants", type=int, default=3)
-    ap.add_argument("--llm", choices=["mock", "anthropic", "ollama"], default="mock")
+    ap.add_argument("--llm", choices=["mock", "anthropic", "ollama", "deepseek", "glm"], default="mock")
     ap.add_argument("--model", default=None)
     ap.add_argument("--text-field", default="modern_text")
     ap.add_argument("--filter-ckpt", default=None,
                     help="checkpoint for the consistency filter (drops structure-inconsistent variants)")
     ap.add_argument("--min-sign-match", type=float, default=5 / 6)
+    ap.add_argument("--filter-jsonl", default=None,
+                    help="score an existing JSONL against --filter-ckpt (report distribution, optionally write --output)")
     a = ap.parse_args()
 
-    fmodel, fenc = (None, "hash")
-    if a.filter_ckpt:
-        fmodel, fenc = _load_filter_model(a.filter_ckpt)
-    stats = build_from_seed(
-        a.seed_file, get_llm_fn(a.llm, a.model), a.output,
-        n_variants=a.n_variants, text_field=a.text_field,
-        filter_model=fmodel, text_encoder=fenc, min_sign_match=a.min_sign_match,
-    )
-    print(stats)
+    if a.filter_jsonl:
+        print(filter_jsonl(a.filter_jsonl, a.filter_ckpt, a.output, a.min_sign_match))
+    else:
+        fmodel, fenc = (None, "hash")
+        if a.filter_ckpt:
+            fmodel, fenc = _load_filter_model(a.filter_ckpt)
+        stats = build_from_seed(
+            a.seed_file, get_llm_fn(a.llm, a.model), a.output,
+            n_variants=a.n_variants, text_field=a.text_field,
+            filter_model=fmodel, text_encoder=fenc, min_sign_match=a.min_sign_match,
+        )
+        print(stats)
