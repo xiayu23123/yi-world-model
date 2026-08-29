@@ -8,3 +8,6 @@ pytest>=7.0
 
 # optional -- real-data transition experiment (yiwm.market_transition)
 # yfinance>=0.2
+
+# optional -- change-point benchmark (yiwm.changepoint)
+# scikit-learn ; scipy is already a torch/numpy transitive dep

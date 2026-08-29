@@ -46,7 +46,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 65 passed
+pytest -q                                            # 69 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -416,6 +416,31 @@ Q phase). **The pipeline works**: a dynamics-first latent supports policy
 learning, +69% ≫ the +20% bar, ±1% over seeds. **MPC *loses* to greedy** on
 this grid, every seed — 4-step rollout error outweighs the lookahead when Q is
 already good. Model-based planning needs a bigger env / longer horizon to pay off.
+
+## Change-point benchmark — the falsifiable test (`changepoint.py`)
+
+Reframe 变卦 (本卦 pattern shift over a sliding window) as a regime-change
+detector and benchmark it against standard methods on synthetic mean+variance
+shifts (10 seeds, ground truth). Fixed arbitrary 6-feature window map
+(trend/std/skew/kurt/acf/cv → yao). `FeatureCUSUM` is the control — same
+features, no 卦.
+
+| method | F1 | false pos (5 true) |
+|---|---|---|
+| **yi (变卦)** | **0.32 ± 0.13** | 7.6 |
+| FeatureCUSUM (same features, control) | 0.23 ± 0.09 | 15.2 |
+| **tuned PELT (L2, grid pen)** | **0.69 ± 0.20** | 0.4 |
+| BinSeg (oracle #bkps) | 0.67 ± 0.18 | 1.6 |
+| raw CUSUM | 0.26 ± 0.08 | 19.1 |
+
+**Falsified.** As a change-point detector the 变卦 mechanism loses ~2× to
+tuned PELT (0.32 vs 0.69) and over-fires (7.6 false positives — every
+noise-driven feature-sign flip is a "变卦"). It does beat the same-features
+CUSUM control by +0.09, so the 卦 quantization does *something* beyond
+independent per-feature thresholding — but nothing that competes with the right
+tool. On a standard task with ground truth and tuned baselines, there is no
+edge. (`ruptures` won't build on Python 3.14 — PELT / BinSeg / CUSUM are
+hand-implemented, so the baseline tuning is transparent.)
 
 ## Known limits / next
 
