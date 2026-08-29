@@ -80,12 +80,13 @@ class TinyKingdom:
 
 
 # --------------------------------------------------------------------------- #
-def collect(n_episodes: int = 1500, seed: int = 0):
+def collect(n_episodes: int = 1500, seed: int = 0, env_fn=None):
     """(yao_t, action, yao_next, reward) with uniform-random actions."""
+    env_fn = env_fn or (lambda s: TinyKingdom(seed=s))
     rng = random.Random(seed)
     buf = []
     for ep in range(n_episodes):
-        env = TinyKingdom(seed=seed * 9973 + ep)
+        env = env_fn(seed * 9973 + ep)
         y = env.obs()
         for _ in range(env.max_steps):
             a = rng.randint(0, 4)
@@ -119,12 +120,13 @@ def train(buf, epochs: int = 40, lr: float = 2e-3, seed: int = 0):
 
 
 @torch.no_grad()
-def action_sensitivity(tr, n: int = 300, seed: int = 1) -> float:
+def action_sensitivity(tr, n: int = 300, seed: int = 1, env_fn=None) -> float:
     """Mean |f(y, 进) - f(y, 守)| over random states."""
+    env_fn = env_fn or (lambda s: TinyKingdom(seed=s))
     g = torch.Generator().manual_seed(seed)
     ds = []
     for _ in range(n):
-        y = TinyKingdom(seed=int(torch.randint(0, 1 << 30, (1,), generator=g))).obs().unsqueeze(0)
+        y = env_fn(int(torch.randint(0, 1 << 30, (1,), generator=g))).obs().unsqueeze(0)
         ds.append((tr(y, torch.tensor([0])) - tr(y, torch.tensor([2]))).abs().mean())
     return float(torch.stack(ds).mean())
 

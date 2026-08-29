@@ -47,7 +47,8 @@ class QNet(nn.Module):
 
 
 def train_q(episodes: int = 4000, gamma: float = 0.95, lr: float = 1e-3,
-            eps: float = 0.2, seed: int = 0):
+            eps: float = 0.2, seed: int = 0, env_fn=None):
+    env_fn = env_fn or (lambda s: TinyKingdom(seed=s))
     torch.manual_seed(seed)
     rng = random.Random(seed)
     q, qt = QNet(), QNet()
@@ -56,7 +57,7 @@ def train_q(episodes: int = 4000, gamma: float = 0.95, lr: float = 1e-3,
     buf: list = []
 
     for ep in range(episodes):
-        env = TinyKingdom(seed=seed * 7919 + ep)
+        env = env_fn(seed * 7919 + ep)
         s = env.obs()
         for _ in range(env.max_steps):
             a = rng.randint(0, _A - 1) if rng.random() < eps else int(q.all_q(s).argmax())
@@ -86,10 +87,11 @@ def train_q(episodes: int = 4000, gamma: float = 0.95, lr: float = 1e-3,
 
 
 @torch.no_grad()
-def eval_greedy_vs_random(q: QNet, n: int = 200, seed: int = 1):
+def eval_greedy_vs_random(q: QNet, n: int = 200, seed: int = 1, env_fn=None):
+    env_fn = env_fn or (lambda s: TinyKingdom(seed=s))
     gq, rr = [], []
     for ep in range(n):
-        env = TinyKingdom(seed=seed * 104729 + ep)
+        env = env_fn(seed * 104729 + ep)
         s, tot = env.obs(), 0.0
         for _ in range(env.max_steps):
             s, r, done, _ = env.step(int(q.all_q(s).argmax()))
@@ -97,7 +99,7 @@ def eval_greedy_vs_random(q: QNet, n: int = 200, seed: int = 1):
             if done:
                 break
         gq.append(tot)
-        env = TinyKingdom(seed=seed * 104729 + ep)
+        env = env_fn(seed * 104729 + ep)
         tot = 0.0
         g = random.Random(ep)
         for _ in range(env.max_steps):
