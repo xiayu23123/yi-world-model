@@ -105,9 +105,23 @@ def run(ticker: str = "AAPL", epochs: int = 60, lr: float = 1e-3, seed: int = 0)
     return {"mse": mse, "persist": persist, "dir_hit": dhit, "ce_gap": ce_gap, "drift": drift}
 
 
+def regime(ticker: str = "AAPL", last: int = 15):
+    """Print the recent market-state -> 卦 sequence (deterministic, no forecast)."""
+    from .market_adapter import load_market, market_regime
+
+    r = market_regime(load_market(ticker))
+    print(f"{ticker} — recent market regime (structural label, not a prediction):\n")
+    for d, row in r.tail(last).iterrows():
+        print(f"  {d.date()}  {row['king_wen']:2d} {row['hex']:<4s} {row['yang_dims']}")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--ticker", default="AAPL")
     ap.add_argument("--epochs", type=int, default=60)
+    ap.add_argument("--regime", action="store_true", help="print recent market->卦 labels, no training")
     a = ap.parse_args()
-    run(a.ticker, a.epochs)
+    if a.regime:
+        regime(a.ticker)
+    else:
+        run(a.ticker, a.epochs)

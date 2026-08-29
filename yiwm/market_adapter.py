@@ -55,3 +55,23 @@ def market_to_yao(df: pd.DataFrame) -> np.ndarray:
     y = np.tanh((x - _CENTER) * _SCALE)
     y[:, 2] = np.tanh((x[:, 2] - _CENTER[2]) * _SCALE[2])   # vol: sign = above/below normal
     return y
+
+
+def market_regime(df: pd.DataFrame) -> pd.DataFrame:
+    """Deterministic market-state -> 卦 labelling (NOT a prediction).
+
+    `sign(yao)` of the 6 indicators is read as a 6-bit hexagram: a structured
+    name for 'what the tape looks like right now', nothing more. No learning,
+    no forward claim.
+    """
+    from .constants import BINARY_TO_KING_WEN, KING_WEN_NAMES
+
+    y = market_to_yao(df)
+    bits = (y > 0).astype(int)
+    k = bits @ (2 ** np.arange(6))
+    kw = BINARY_TO_KING_WEN.numpy()[k]
+    return pd.DataFrame({
+        "hex": [KING_WEN_NAMES[j] for j in kw],
+        "king_wen": kw + 1,
+        "yang_dims": ["".join("阳" if b else "阴" for b in row) for row in bits],
+    }, index=df.index)

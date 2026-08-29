@@ -32,6 +32,21 @@ def test_load_and_map_no_lookahead(fake_csv):
     assert np.array_equal(market_to_yao(f2), y)            # obs unchanged
 
 
+def test_market_regime_is_deterministic_label(fake_csv):
+    from yiwm.market_adapter import market_regime
+
+    f = load_market(fake_csv)
+    r = market_regime(f)
+    assert list(r.columns) == ["hex", "king_wen", "yang_dims"]
+    assert len(r) == len(f)
+    assert r["king_wen"].between(1, 64).all()
+    assert (r["yang_dims"].str.len() == 6).all()
+    # deterministic + no forward leakage
+    f2 = f.copy()
+    f2.loc[f2.index[-5:], "fwd_ret_5"] = -5.0
+    assert list(market_regime(f2)["king_wen"]) == list(r["king_wen"])
+
+
 def test_market_transition_trains(fake_csv):
     from yiwm.market_transition import MarketTransition, _splits
     import torch

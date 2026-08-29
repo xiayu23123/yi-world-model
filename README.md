@@ -46,7 +46,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 54 passed
+pytest -q                                            # 55 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -295,24 +295,31 @@ reproducible by a continuous map — not an artefact of the flip. It is still a
 what would make the transition net learn something the flip rule doesn't
 already contain.
 
-## Real-data transition (`market_adapter.py` / `market_transition.py`)
+## Real-data transition — **methodology validation only, no trading use**
 
-The P3 limit was "distillation, needs a real env". `market_adapter` maps a price
-series to `R^6` (6 backward-looking indicators, **no look-ahead**);
-`market_transition` learns `f: yao_t → yao_{t+1}` on it. AAPL 2015–2024,
+> `market_transition.py` is a research probe: *can `LearnedTransition` ingest
+> real time-series and learn a map distinct from the internal flip rule?*
+> **No trading advice. No P&L backtest. Not a signal.**
+
+`market_adapter` maps a price series to `R^6` (6 backward-looking indicators,
+**no look-ahead** — a test asserts the obs is independent of the forward-return
+label). `market_transition` learns `f: yao_t → yao_{t+1}` on it. AAPL 2015–2024,
 held-out 2022–2024:
 
-| check | result |
-|---|---|
-| 1-step MSE vs persistence | 0.023 vs 0.027 — beats "stays put" by ~17% |
-| momentum direction hit | 0.865 vs 0.861 — **no directional edge** (features too autocorrelated) |
-| gap vs `ChangeEngine` flip | **0.23** — learned its *own* map, not the coded rule |
-| bootstrap (iterate 30 steps) | bounded, drifts (~0.05), no fixed point |
+| check | result | reading |
+|---|---|---|
+| 1-step MSE vs persistence | 0.023 vs 0.027 | beats "stays put" ~17% |
+| momentum direction hit | 0.865 vs 0.861 | **no edge** — model captures autocorrelation, not causation |
+| gap vs `ChangeEngine` flip | **0.23** | learned a *distinct* map, not a distillation |
+| bootstrap (30 steps) | bounded, drift ~0.05 | stable long-horizon, no fixed point |
 
-So a transition net **does** learn a real, distinct map when given a real
-environment — the P3 "is it just a distillation" question resolves *no* on
-external data. It has no tradeable predictive skill (nor is that the goal —
-this is methodology; no backtest, no signal). Needs `pip install yfinance`.
+Conclusion: the architecture ingests external signals and learns non-trivial
+transitions — the P3 "just a distillation?" question resolves **no** on real
+data. Markets are low-signal/high-noise; there is no predictive skill here.
+
+**`--regime`** (`python -m yiwm.market_transition --regime`) reads `sign(yao)`
+of the 6 indicators as a 6-bit 卦 — a *structural label* for "what the tape
+looks like now" (late-2024 AAPL oscillates 履 ⇄ 中孚), no forecast, no training.
 
 ## Known limits / next
 
