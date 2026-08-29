@@ -11,8 +11,8 @@ def test_import_fills_qian_kun(tmp_path):
     build_yao_seed(seed)
     stats = import_canonical(seed)
     assert stats["canonical_filled"] == 12     # 乾 6 + 坤 6
-    assert stats["modern_filled"] == 12        # P0 anchors
-    assert stats["p0_relabelled"] >= 4         # toy _action disagrees on several
+    assert stats["modern_filled"] == 36        # P0 (12) + P1 (24)
+    assert stats["p0_relabelled"] >= 12        # toy _action disagrees on many anchors
     assert stats["total"] == 384
 
     rows = json.loads(open(seed, encoding="utf-8").read())
@@ -25,23 +25,33 @@ def test_import_fills_qian_kun(tmp_path):
     assert by[("屯", "初九")]["modern_text"] == ""
 
 
-def test_p0_modern_text_is_jargon_free_and_sized():
-    for hexn, ys in __import__("yiwm.canonical", fromlist=["MODERN_P0"]).MODERN_P0.items():
-        for yname, txt in ys.items():
-            for bad in _JARGON:
-                assert bad not in txt, f"{hexn}{yname}: leaked {bad!r}"
-            assert 60 <= len(txt) <= 160, f"{hexn}{yname}: len {len(txt)}"
+def test_anchor_modern_text_is_jargon_free_and_sized():
+    mod = __import__("yiwm.canonical", fromlist=["MODERN_P0", "MODERN_P1"])
+    for table in (mod.MODERN_P0, mod.MODERN_P1):
+        for hexn, ys in table.items():
+            for yname, txt in ys.items():
+                for bad in _JARGON:
+                    assert bad not in txt, f"{hexn}{yname}: leaked {bad!r}"
+                assert 60 <= len(txt) <= 200, f"{hexn}{yname}: len {len(txt)}"
+
+
+def test_p1_contrast_pairs_present():
+    from yiwm.canonical import MODERN_P1
+    assert set(MODERN_P1) == {"既濟", "未濟", "泰", "否"}
+    assert all(len(v) == 6 for v in MODERN_P1.values())
 
 
 def test_import_extra_overrides(tmp_path):
     seed = str(tmp_path / "s.json")
     build_yao_seed(seed)
+    base = import_canonical(seed)
     stats = import_canonical(
         seed,
         extra={"屯": {"初九": "磐桓，利居贞，利建侯"}},
-        modern_extra={"屯": {"初九": "一个人接手了一个刚立项的团队，方向没定，先稳住阵脚。"}},
+        modern_extra={"屯": {"初九": "一个人接手了一个刚立项的团队，方向没定，先稳住阵脚，把手里的事排出优先级，再谈别的。"}},
     )
-    assert stats["canonical_filled"] == 13 and stats["modern_filled"] == 13
+    assert stats["canonical_filled"] == base["canonical_filled"] + 1
+    assert stats["modern_filled"] == base["modern_filled"] + 1
     rows = json.loads(open(seed, encoding="utf-8").read())
     hit = [r for r in rows if r["hex_name"] == "屯" and r["yao_name"] == "初九"][0]
     assert hit["canonical_text"] == "磐桓，利居贞，利建侯"

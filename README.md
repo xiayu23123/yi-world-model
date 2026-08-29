@@ -44,7 +44,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 40 passed
+pytest -q                                            # 41 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -128,7 +128,7 @@ soft labels help only when `yao_target` is on a common scale (synth), and hurt
 | `data.py` / `synth.py` / `textenc.py` | `eco` generator / `synth` generator + `SynthPool` / pluggable frozen text encoders |
 | `augment.py` | LLM back-inversion: jargon-free prompt, `str->str` backends (anthropic / ollama / mock / paraphrase), projector consistency filter, crash-safe `build_semantic_jsonl` / `build_from_seed` |
 | `seed.py` | `build_yao_seed` — 384-line (64×6) skeleton with all structural fields derived (yao_target, moving, timing, action, 初九/六二… names); text fields left blank |
-| `canonical.py` | `import_canonical` — fills `canonical_text` (乾/坤 爻辞) + `modern_text` (12 P0 anchors) + `P0_ACTION` override where the toy `_action` misreads 乾/坤; extend `CANONICAL`/`MODERN_P0` or pass `extra=`/`modern_extra=` |
+| `canonical.py` | `import_canonical` — fills `canonical_text` (乾/坤 爻辞), `modern_text` (`MODERN_P0` 乾坤 + `MODERN_P1` 既濟/未濟/泰/否 = 36 rows), and `P0_ACTION` overrides where the structure-only `_action` misreads an anchor; extend the dicts or pass `extra=` / `modern_extra=` |
 | `train.py` / `demo.py` / `analysis.py` | training loop / one-shot visualization / 之卦 error decomposition |
 
 ## Data augmentation (`augment.py`) — opt-in, not run by default
@@ -147,8 +147,9 @@ Two routes:
 python -c "from yiwm.augment import build_semantic_jsonl, anthropic_llm_fn; \
   build_semantic_jsonl('data/sem.jsonl', 500, anthropic_llm_fn(), seed=0)"
 
-# B. 爻辞-seeded. `data/yao_seed.json` ships with 乾/坤 already done:
-#    12 canonical_text + 12 P0 modern_text anchors (poles of the force space).
+# B. 爻辞-seeded. `data/yao_seed.json` ships with anchors already done:
+#    12 乾/坤 canonical_text + 36 modern_text (乾坤 P0 poles + 既濟/未濟/泰/否 P1
+#    contrast pairs). 14 rows carry action_derived (toy _action was overridden).
 #    Regenerate / extend:
 python -m yiwm.seed      data/yao_seed.json    # 384 rows; structural fields all derived
 python -m yiwm.canonical data/yao_seed.json    # 乾/坤 canonical + P0 modern; extend CANONICAL/MODERN_P0 for the rest

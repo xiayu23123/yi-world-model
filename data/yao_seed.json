@@ -1588,11 +1588,12 @@
       0
     ],
     "timing": "潜",
-    "action": "jin",
+    "action": "dai",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一位年轻软件工程师，拿到大厂 offer，同时收到本地一家研究实验室的邀请。大厂薪资更高，他仍选实验室，因为那里允许他自由探索底层框架。他认为三年后的技术积累比短期收入更值。",
     "domains": [],
-    "verified": false
+    "verified": true,
+    "action_derived": "jin"
   },
   {
     "hex_index": 7,
@@ -1627,9 +1628,9 @@
     "timing": "生",
     "action": "jin",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "在线教育平台用户数疫情后翻倍，竞争也在加剧。产品负责人决定把课程内容标准化，并开发一套教师培训体系。他相信标准化是后续规模化复制的基石，短期投入增加也认。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 7,
@@ -1664,9 +1665,9 @@
     "timing": "守",
     "action": "shou",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一家建筑设计事务所连中三项政府项目，团队满负荷。合伙人不再投标新项目，而是把精力用于优化内部流程，提拔两名年轻设计师当项目负责人，想在扩张前先夯实内部管理。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 7,
@@ -1701,9 +1702,9 @@
     "timing": "跃",
     "action": "bian",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "工业机器人制造商接到海外大客户订单，对方要定制化研发而不是买现成产品线。负责人组建一个十二人的快速响应小组，与客户联合开发，独立于常规部门，保持灵活。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 7,
@@ -1736,11 +1737,12 @@
       0
     ],
     "timing": "显",
-    "action": "tui",
+    "action": "shou",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一家跨境电商平台已是东南亚头部玩家，月活过亿。创始人没有去欧美复制模式，而是深耕物流基础设施，在印尼新建三个海外仓，认为把现有市场的交付体验做好比分散精力更值。",
     "domains": [],
-    "verified": false
+    "verified": true,
+    "action_derived": "tui"
   },
   {
     "hex_index": 7,
@@ -1775,9 +1777,9 @@
     "timing": "亢",
     "action": "bian",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "某地产集团创始人，核心业务因政策调控收缩。他把集团分成资产管理和城市更新两条业务线，引入职业经理人负责后者，自己抽更多时间研究宏观趋势，为集团找下一个十年方向。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 8,
@@ -4696,11 +4698,12 @@
       0
     ],
     "timing": "潜",
-    "action": "jin",
+    "action": "dai",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一家 SaaS 公司交付完年度所有里程碑，团队进入休整期。技术负责人发现代码库有几处隐患，但客户没投诉。他不立即重构，而是以技术债备案的形式记录，等下一轮融资到位再处理，以保住当前交付节奏。",
     "domains": [],
-    "verified": false
+    "verified": true,
+    "action_derived": "jin"
   },
   {
     "hex_index": 21,
@@ -4735,9 +4738,9 @@
     "timing": "生",
     "action": "jin",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "智能硬件初创的第二代原型通过内部测试，性能提升两成。创始人决定小批量试产一千台，走众筹发售。他知道大厂可能一季度后跟进，但认为先行窗口只有九十天，必须尽快铺开。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 21,
@@ -4772,9 +4775,9 @@
     "timing": "守",
     "action": "shou",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "连锁餐饮集团完成数字化转型，线上订单占六成。负责人不急着开新店，而是用半年统一各分店的食材供应链标准，把损耗率从八个百分点压到四个。他认为标准化是扩张的前提，不是结果。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 21,
@@ -4809,9 +4812,9 @@
     "timing": "跃",
     "action": "bian",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一家二线城市的区域银行，不良率降到历史最低。总行要求转型科技金融，但当地缺人才。行长选择与两家金融科技公司战略合作，而不是自建团队，借船出海。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 21,
@@ -4846,9 +4849,9 @@
     "timing": "显",
     "action": "shou",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "该券商连续三年获评行业最佳财富管理机构，管理资产破八千亿。总裁拒绝了多家国际投行的收购意向，把超额利润投入投资者教育平台，并推行内部轮岗，以应对即将落地的监管新规。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 21,
@@ -4883,9 +4886,9 @@
     "timing": "亢",
     "action": "bian",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一位知名企业家，创立的实体零售帝国仍盈利但市占率连跌五年。家族内部出现分家争议，他意识到家长制管理已不适用，最终把集团拆成三个独立事业部，分别交给三名子女独立运营。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 22,
@@ -9360,9 +9363,9 @@
     "timing": "潜",
     "action": "dai",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一家生物科技公司刚完成临床前实验，数据还不充分。研发负责人在会上反对过早启动融资路演，建议先与两家医院合作做真实世界数据收集，增加统计说服力，再接触投资人。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 42,
@@ -9397,9 +9400,9 @@
     "timing": "生",
     "action": "jin",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "农业科技项目在三个试点村验证了智能灌溉的节水效果。创始人决定接入更多传感器，并在相邻省份加两个试点，积累更多气候数据。团队只有八人，但他认为这是进入主流市场的唯一路径。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 42,
@@ -9432,11 +9435,12 @@
       0
     ],
     "timing": "守",
-    "action": "bian",
+    "action": "shou",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一家民营博物馆运营五年，年参观人次稳定在五十万。馆长没有跟风上 VR 和元宇宙体验，而是把钱用于修复一批古画。他认为博物馆的核心是藏品质量，技术只是辅助，不该喧宾夺主。",
     "domains": [],
-    "verified": false
+    "verified": true,
+    "action_derived": "bian"
   },
   {
     "hex_index": 42,
@@ -9471,9 +9475,9 @@
     "timing": "跃",
     "action": "bian",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "某户外品牌从代工起家，现已有自有设计团队。负责人要在两条路里选：与更大渠道商签排他协议换规模，还是自建直营店控品牌。他两条都试，在三个一线城市开直营店，同时保留现有渠道供应。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 42,
@@ -9506,11 +9510,12 @@
       0
     ],
     "timing": "显",
-    "action": "tui",
+    "action": "shou",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "新能源电池制造商已是国内头部供应商，市占三成，但面临技术路线迭代。董事长不急着转向新体系，而是把研发预算一半投现有产线的工艺改良，一半投预研，守住基本盘同时探索新方向。",
     "domains": [],
-    "verified": false
+    "verified": true,
+    "action_derived": "tui"
   },
   {
     "hex_index": 42,
@@ -9543,11 +9548,12 @@
       1
     ],
     "timing": "亢",
-    "action": "tui",
+    "action": "bian",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一位资深金融分析师，宏观预测模型过去十年准确率极高，近期连续两次出错。他发现市场结构因量化基金普及而变了，于是暂停发布公开预测，把模型底层架构推翻重写，并招了一名机器学习专家。",
     "domains": [],
-    "verified": false
+    "verified": true,
+    "action_derived": "tui"
   },
   {
     "hex_index": 43,
@@ -12468,9 +12474,9 @@
     "timing": "潜",
     "action": "dai",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一家共享办公空间的运营方，连续三季度入驻率低于七成。负责人不降价促销，而是暗中调整工位布局，为小团队提供更灵活的长租方案，打算看到竞品反应后再动价格。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 56,
@@ -12505,9 +12511,9 @@
     "timing": "生",
     "action": "jin",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "某消费电子品牌因供应链问题交付延迟，口碑下滑。新任品牌负责人不急着投广告挽回声誉，而是先与三家物流商重谈，签时效赔付协议，之后才启动以品质回归为主题的传播。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 56,
@@ -12540,11 +12546,12 @@
       0
     ],
     "timing": "守",
-    "action": "bian",
+    "action": "shou",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一家中型出版社销售额连续两年持平，电子书增长慢。负责人不裁员也不低价倾销，而是把编辑团队重组为内容工作室，靠细分品类的深度运营保住核心读者，同时关掉部分亏损的分销渠道。",
     "domains": [],
-    "verified": false
+    "verified": true,
+    "action_derived": "bian"
   },
   {
     "hex_index": 56,
@@ -12579,9 +12586,9 @@
     "timing": "跃",
     "action": "bian",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "某传统汽车零部件供应商，主营毛利率从两成半跌到一成二。负责人把研发部门一部分独立出去，成立合资公司专注新能源配套，同时保留传统业务维持现金流。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 56,
@@ -12616,9 +12623,9 @@
     "timing": "显",
     "action": "shou",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一家大型医疗集团的董事长，因集采政策公司利润大跌。他没有激进裁员，而是主动与医保部门沟通，参与一项慢病管理试点。他认为与其对抗政策，不如成为政策的一部分，换长期生存空间。",
     "domains": [],
-    "verified": false
+    "verified": true
   },
   {
     "hex_index": 56,
@@ -12651,11 +12658,12 @@
       1
     ],
     "timing": "亢",
-    "action": "tui",
+    "action": "bian",
     "canonical_text": "",
-    "modern_text": "",
+    "modern_text": "一家互联网货运平台，因合规问题多次被约谈，创始人不再死守规模优先。他把核心业务拆分，将车队管理、司机培训等环节剥离为独立服务公司，转向轻资产的科技赋能模式，降低系统性风险。",
     "domains": [],
-    "verified": false
+    "verified": true,
+    "action_derived": "tui"
   },
   {
     "hex_index": 57,
