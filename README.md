@@ -44,7 +44,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 49 passed
+pytest -q                                            # 50 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -136,6 +136,7 @@ soft labels help only when `yao_target` is on a common scale (synth), and hurt
 | `model.py` `moving_head` | 21-way joint 动爻-mask classifier + `hex_logits_next_joint` — the better 之卦 path (see the wall discussion above) |
 | `policy.py` | `TemporalPositionalPolicy` — 当位/不当位-weighted → {进 退 守 变 待} + intensity |
 | `structured_input.py` | 4-question rule map → yao-force; `demo --structured-input` (encoder bypassed via `yao_override`) |
+| `dynamics.py` | 64-卦 rollout + 384-爻 perturbation batch → `rollout_stats.json` / `perturbation.csv` + console portrait |
 | `model.py` | `YiWorldModel` assembly + King Wen conversion |
 | `losses.py` | multi-task loss: 本卦 CE (opt. soft) / 之卦 CE / 动爻 BCE + pairwise ranking / 行动 CE / `L_yao` Huber / 吉凶 / 五行 balance |
 | `data.py` / `synth.py` / `textenc.py` | `eco` generator / `synth` generator + `SynthPool` / pluggable frozen text encoders |
@@ -239,26 +240,32 @@ one global `polarity` ⇒ 本卦 is always 乾 or 坤; per-line yin/yang would n
 more than 4 questions. This is a deliberate trade — it keeps the world model's
 core (变易 engine, 之卦, policy) usable without a working text→structure map.
 
-## Rollout + perturbation
+## System-dynamics portrait (`dynamics.py`)
 
-**`model.rollout(yao, steps)`** (`demo --rollout N`) iterates 本卦 → 之卦 →
-本卦 … as a toy dynamical system: no new observation, so the 老爻 flip their
-sign (discharged) and the whole force vector decays (`* decay` each step). It
-converges to a fixed point (`|force| < the learned 老爻 threshold` → `stop=fixed`)
-or a repeating 卦 (`stop=cycle`). e.g. `未濟 →(动爻)→ 未濟 → 解  [cycle]`,
-`|force| 0.90 → 0.63`.
+`python -m yiwm.dynamics --ckpt <ckpt>` runs `rollout` + perturbation over all
+384 (卦, 爻) standard states → `rollout_stats.json` + `perturbation.csv`.
 
-**`analysis` perturbation report** — add `yao += N(0, σ)` and measure argmax
-flip rates:
+**`model.rollout(yao, steps)`** (`demo --rollout N`) iterates 本卦 → 之卦 → …
+with no new observation: the 老爻 flip sign (discharged), the force vector
+decays each step. Terminates at a fixed point (`|force| < the learned 老爻
+threshold`) or a repeating 卦. e.g. `未濟 →(动爻)→ 未濟 → 解 [cycle]`, `|force|
+0.90 → 0.63`. Over 64 卦 (synth ckpt): mean 2–5 steps to terminate, only
+`鼎` is a strict self-attractor; **`乾` is among the *slowest / most cyclic*** —
+its all-yang structural force keeps every line near-老, so the chain never
+settles. That is emergent behaviour of the learned model, not a coded rule.
 
-| σ | benGua flip | 之卦 flip | action flip |
-|---|---|---|---|
-| 0.05 | 0.8% | 8% | 0.6% |
-| 0.20 | 13% | 41% | 5.5% |
+**Perturbation** — `yao += N(0, σ)`, argmax flip rate (mean over 64 卦, by 爻):
 
-benGua and action are noise-robust; **之卦 is fragile** — the 老爻 determination
-sits right on the adaptive threshold, so small force perturbations cross it.
-Same story as the `eco` 之卦 residual: boundary sensitivity, not a bug.
+| 爻 | benGua flip @σ.05 | 之卦 flip @σ.05 | benGua @σ.20 | 之卦 @σ.20 |
+|---|---|---|---|---|
+| 初 | 0.07 | 0.17 | 0.38 | 0.50 |
+| **三** | **0.14** | **0.24** | 0.40 | 0.52 |
+| 五 | 0.11 | 0.18 | 0.39 | 0.52 |
+
+benGua/action are noise-robust; **之卦 is ~2× as fragile at every position** —
+the 老爻 sits on the adaptive threshold. **三爻 is the most fragile** (matches
+易 lore: 三多凶, the awkward top-of-lower-trigram slot); 初/二爻 the most stable.
+`eco` (aliased obs) is more fragile throughout (之卦 flip ~0.20–0.31 @σ.05).
 
 ## Known limits / next
 
