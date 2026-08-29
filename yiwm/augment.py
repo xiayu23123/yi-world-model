@@ -293,6 +293,12 @@ _VARIANT_PROMPT = (
     "禁止出现卦名、爻位词、阴阳/五行术语和鸡汤词。只叙述，不点评。\n\n原情境：\n{src}"
 )
 
+_CANONICAL_PROMPT = (
+    "下面是一句古代格言式的处境判断。请把它改写成一段具体的现代生活情境（80-160 字），"
+    "保留它描述的「态势结构」——所处阶段、力量强弱、进退倾向——但换成当代的人物、行业和约束。"
+    "禁止出现卦名、爻位词、阴阳/五行术语和鸡汤词。直接叙述，不解释、不点评。\n\n原文：\n{src}"
+)
+
 
 def build_from_seed(
     seed_path: str,
@@ -315,13 +321,14 @@ def build_from_seed(
 
     seeds = json.loads(Path(seed_path).read_text(encoding="utf-8"))
     filled = [s for s in seeds if s.get(text_field, "").strip()]
+    prompt_tpl = _CANONICAL_PROMPT if text_field == "canonical_text" else _VARIANT_PROMPT
 
     texts, rows = [], []
     for s in filled:
         src = s[text_field].strip()
         for _ in range(n_variants):
             try:
-                texts.append(llm_fn(_VARIANT_PROMPT.format(src=src)))
+                texts.append(llm_fn(prompt_tpl.format(src=src)))
             except Exception:  # noqa: BLE001
                 texts.append(None)
             rows.append({
