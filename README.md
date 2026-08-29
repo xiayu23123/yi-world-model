@@ -46,7 +46,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 61 passed
+pytest -q                                            # 63 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -360,11 +360,23 @@ and the transition checks run unchanged. Stage 1 (3×3, full obs):
 | greedy-Q vs random | **+164 vs +91** | +9 vs −6 |
 | transition action-sensitivity | 0.026 (**< 0.05**) | 0.083 |
 
-Q-learning **scales** to the grid. But the transition's action-sensitivity
-*drops below the bar*: the R^6 summary of a grid is too lossy to preserve which
-action was taken (进 and 守 both mostly move player resource/control → similar
-obs). The env is causal (`|进−守|` in obs = 0.031); the 6-dim bottleneck washes
-it out. A grid-level (conv) encoder is what stage 2–3 would need.
+**Stage 2** (`kingdom_stage2.py`, 5×5, full obs, **CNN encoder**) — a clean
+ablation: only the encoder changes.
+
+| | stage 1 (hand R^6) | stage 2 (CNN, dual-head) |
+|---|---|---|
+| greedy-Q vs random | +73 | **+68** — Q still scales |
+| transition action-sensitivity | 0.026 | **0.014** — *worse* |
+
+The dual-head `GridEncoder` (shared conv → `yao` R^6 + `dyn` 32-d) does **not**
+fix the transition. First `dyn` saturated to a constant (`Tanh` on a 32-d
+embedding under DQN — replaced with `LayerNorm`, lr 3e-4, grad clip); then even
+with a heavy full-next-grid world-model auxiliary loss, an action-conditioned
+transition `f(dyn, a) → dyn'` learns sensitivity ~0.014. **Diagnosis:** a latent
+shaped by a control objective (Q) or coarse reconstruction is *policy-relevant*,
+not *dynamics-complete*. Recovering a learnable action-conditioned transition
+needs the encoder trained **primarily** as `argmin ‖f(z_t,a_t) − z_{t+1}‖`
+(encoder + transition jointly, no Q) — encoder *capacity* was never the issue.
 
 ## Known limits / next
 

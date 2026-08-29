@@ -43,6 +43,13 @@ class Kingdom2D:
     def _controlled(self) -> torch.Tensor:
         return self.ctrl > 0.5
 
+    def grid(self) -> torch.Tensor:
+        """[3, N, N] — resource / threat / control channels (for GridEncoder)."""
+        return torch.stack([self.res / 100.0, self.threat / 100.0, self.ctrl])
+
+    def player(self) -> torch.Tensor:
+        return torch.tensor([self.p_res / 100.0, self.p_mil / 100.0, self.p_mor / 100.0])
+
     def obs(self) -> torch.Tensor:
         c = self._controlled()
         n_ctrl = int(c.sum())
