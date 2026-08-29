@@ -46,7 +46,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 57 passed
+pytest -q                                            # 59 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -336,19 +336,28 @@ runs two checks:
 | naïve MPC (imagine 3, pick max-value) vs random | −9.8 vs −5.6 | ❌ **worse than random** |
 
 So given a real causal environment, the transition net **does** learn action
-influence — the thing passive market data cannot teach. Naïve MPC on top
-**fails**: the value head is an action-blind immediate-reward regressor, and the
-reward here depends on the action taken (`1.0` iff it matches the 时位's proper
-action). Planning needs a Q-function (state+action → discounted return) or a
-state-only reward — a value-learning problem, not a transition problem.
+influence — the thing passive market data cannot teach.
+
+**Planning** — `q_planner.py` closes it. The naïve MPC failed because it scored
+`V(f(s,a))` with an action-blind value head (reaching a state ≠ earning its
+value). `QNet(state, action)` + DQN on real env interaction (episodes are
+microseconds, no imagination model needed):
+
+| policy | mean return (20 steps) |
+|---|---|
+| random | −5.5 |
+| naïve V-MPC (imagine 3, argmax value) | −9.8 |
+| **greedy `argmax_a Q(s,a)`** | **+9.3** |
+
+The problem was action-blind value, not the transition. `python -m yiwm.q_planner`.
 
 ## Known limits / next
 
 - 之卦 `eco` residual ~15% is observation aliasing — the joint head took out the
   independence-assumption part; the rest needs a richer obs, not architecture.
-- **MPC planning** needs a proper Q-head; the current `tiny_kingdom` value head
-  can't drive action selection. Transition + causality are in place; the
-  planner is the open piece.
+- **Multi-step / model-based planning** — `q_planner` is a 1-step greedy Q
+  policy on a toy env; deeper horizons, a learned-transition rollout as the
+  Q-rollout, and a non-toy environment are the open pieces.
 - No real 爻辞 / 彖 / 象 semantics; no real "situation → 卦" labelled data. This is
   the main gap between a working prototype and "actually understands the I Ching".
   `augment.py` narrows the diversity gap but not the aliasing gap.
