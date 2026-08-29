@@ -17,6 +17,7 @@ is a no-LLM surface-variation stand-in so the pipeline is runnable offline.
 
 from __future__ import annotations
 
+import argparse
 import random
 from pathlib import Path
 
@@ -96,6 +97,17 @@ def mock_llm_fn(prompt: str) -> str:
         f"某人正在处理一件事，手上的条件时松时紧，外部关注度不高。"
         f"他在权衡要不要现在发力，还是再等等看。编号 {h}。"
     )
+
+
+def get_llm_fn(name: str, model: str | None = None):
+    """name -> a `str -> str` generator. 'mock' | 'anthropic' | 'ollama'."""
+    if name == "mock":
+        return mock_llm_fn
+    if name == "anthropic":
+        return anthropic_llm_fn(model=model)
+    if name == "ollama":
+        return ollama_llm_fn(model=model or "llama3.1:8b")
+    raise ValueError(f"unknown --llm {name!r}")
 
 
 def ollama_llm_fn(model: str = "llama3.1:8b", base_url: str = "http://localhost:11434",
@@ -343,3 +355,42 @@ def build_from_seed(
         "variants_attempted": len(texts),
         "written": written,
     }
+
+
+def _load_filter_model(ckpt: str):
+    blob = torch.load(ckpt)
+    if isinstance(blob, dict) and "state_dict" in blob:
+        state, te = blob["state_dict"], blob.get("text_encoder", "hash")
+    else:
+        state, te = blob, "hash"
+    from .model import YiWorldModel
+    from .textenc import get_text_encoder
+
+    _, obs_dim = get_text_encoder(te)
+    m = YiWorldModel(obs_dim=obs_dim)
+    m.load_state_dict(state)
+    return m, te
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser(description="expand a filled yao_seed.json into a training JSONL")
+    ap.add_argument("--seed-file", required=True)
+    ap.add_argument("--output", required=True)
+    ap.add_argument("--n-variants", type=int, default=3)
+    ap.add_argument("--llm", choices=["mock", "anthropic", "ollama"], default="mock")
+    ap.add_argument("--model", default=None)
+    ap.add_argument("--text-field", default="modern_text")
+    ap.add_argument("--filter-ckpt", default=None,
+                    help="checkpoint for the consistency filter (drops structure-inconsistent variants)")
+    ap.add_argument("--min-sign-match", type=float, default=5 / 6)
+    a = ap.parse_args()
+
+    fmodel, fenc = (None, "hash")
+    if a.filter_ckpt:
+        fmodel, fenc = _load_filter_model(a.filter_ckpt)
+    stats = build_from_seed(
+        a.seed_file, get_llm_fn(a.llm, a.model), a.output,
+        n_variants=a.n_variants, text_field=a.text_field,
+        filter_model=fmodel, text_encoder=fenc, min_sign_match=a.min_sign_match,
+    )
+    print(stats)
