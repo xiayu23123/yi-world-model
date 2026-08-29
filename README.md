@@ -44,7 +44,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 42 passed
+pytest -q                                            # 46 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -135,6 +135,7 @@ soft labels help only when `yao_target` is on a common scale (synth), and hurt
 | `change.py` | `ChangeEngine` — rank-aware adaptive threshold, STE phase transition, differentiable expected-yao (no argmax), real Hamming agreement |
 | `model.py` `moving_head` | 21-way joint 动爻-mask classifier + `hex_logits_next_joint` — the better 之卦 path (see the wall discussion above) |
 | `policy.py` | `TemporalPositionalPolicy` — 当位/不当位-weighted → {进 退 守 变 待} + intensity |
+| `structured_input.py` | 4-question rule map → yao-force; `demo --structured-input` (encoder bypassed via `yao_override`) |
 | `model.py` | `YiWorldModel` assembly + King Wen conversion |
 | `losses.py` | multi-task loss: 本卦 CE (opt. soft) / 之卦 CE / 动爻 BCE + pairwise ranking / 行动 CE / `L_yao` Huber / 吉凶 / 五行 balance |
 | `data.py` / `synth.py` / `textenc.py` | `eco` generator / `synth` generator + `SynthPool` / pluggable frozen text encoders |
@@ -214,6 +215,29 @@ not learn a generalizable situation→卦 map at this data scale. It would need
 end-to-end fine-tuning of the encoder (drops the frozen constraint), 10–50×
 more data, or a contrastive objective. The `moving^6` wall is untouched.
 `data/sem_all.jsonl` is kept as a corpus; the training result is negative.
+
+## Structured input (`structured_input.py`) — the honest fallback
+
+After the free-text route failed to generalise, this is the working
+"situation → 卦" path: **4 multiple-choice questions, rule-mapped, no learning
+on the obs side.**
+
+```bash
+python -m yiwm.demo --structured-input     # answer 4 questions -> 卦象 + 之卦 + action
+```
+
+| question | drives |
+|---|---|
+| `phase` (潜/生/守/跃/显/亢) | the 老爻 line (1–6) → 之卦 |
+| `polarity` (阳/阴) | global sign → 本卦 (乾 or 坤) |
+| `resource` (充足/临界/紧缺) | magnitude scale |
+| `domain` | 五行 colouring for the entities |
+
+本卦 / 动爻 / 之卦 are **exact by construction**; the trained model contributes
+only the *action* recommendation (its policy net weighs 当位 / 时位). Limitation:
+one global `polarity` ⇒ 本卦 is always 乾 or 坤; per-line yin/yang would need
+more than 4 questions. This is a deliberate trade — it keeps the world model's
+core (变易 engine, 之卦, policy) usable without a working text→structure map.
 
 ## Known limits / next
 

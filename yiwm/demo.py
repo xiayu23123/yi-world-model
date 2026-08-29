@@ -77,10 +77,34 @@ def run(ckpt: str = "checkpoints/yiwm.pt", seed: int = 7, data: str | None = Non
     print(line)
 
 
+def run_structured(ckpt: str):
+    from .model import YiWorldModel
+    from .structured_input import ask_interactive, structured_infer
+
+    state, data, te = _load(ckpt, "eco")
+    _, obs_dim = get_dataset(data, te)
+    model = YiWorldModel(obs_dim=obs_dim)
+    if state is not None:
+        model.load_state_dict(state)
+    r = structured_infer(ask_interactive(), model)
+    print(f"\n爻力: {r['force']}")
+    print(f"\n本卦  {r['ben_hex'][0]:2d} {r['ben_hex'][1]}")
+    print(r["ben_render"])
+    print(f"\n动爻 (下->上): {r['moving_lines']}")
+    print(f"\n之卦  {r['zhi_hex'][0]:2d} {r['zhi_hex'][1]}")
+    print(r["zhi_render"])
+    print(f"\n行动: {r['action']}")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpt", default="checkpoints/yiwm.pt")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--data", choices=["eco", "synth"], default=None)
+    ap.add_argument("--structured-input", action="store_true",
+                    help="answer 4 MC questions instead of sampling a scene")
     a = ap.parse_args()
-    run(a.ckpt, a.seed, a.data)
+    if a.structured_input:
+        run_structured(a.ckpt)
+    else:
+        run(a.ckpt, a.seed, a.data)

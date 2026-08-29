@@ -46,8 +46,9 @@ class YiWorldModel(nn.Module):
         entity_cats: torch.Tensor,     # [B, N] long 0..4
         entity_adj: torch.Tensor,      # [B, N, N]
         hard: bool = False,
+        yao_override: torch.Tensor | None = None,   # [B, 6] -- skip the encoder (structured input)
     ) -> dict:
-        yao = self.encoder(obs)                                   # [B, 6]
+        yao = self.encoder(obs) if yao_override is None else yao_override  # [B, 6]
         hex_logits = self.hexinf(yao)                             # [B, 64]
 
         delta = self.wuxing(entity_states, entity_cats, entity_adj)
