@@ -46,7 +46,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 63 passed
+pytest -q                                            # 64 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -369,14 +369,26 @@ ablation: only the encoder changes.
 | transition action-sensitivity | 0.026 | **0.014** — *worse* |
 
 The dual-head `GridEncoder` (shared conv → `yao` R^6 + `dyn` 32-d) does **not**
-fix the transition. First `dyn` saturated to a constant (`Tanh` on a 32-d
-embedding under DQN — replaced with `LayerNorm`, lr 3e-4, grad clip); then even
-with a heavy full-next-grid world-model auxiliary loss, an action-conditioned
-transition `f(dyn, a) → dyn'` learns sensitivity ~0.014. **Diagnosis:** a latent
-shaped by a control objective (Q) or coarse reconstruction is *policy-relevant*,
-not *dynamics-complete*. Recovering a learnable action-conditioned transition
-needs the encoder trained **primarily** as `argmin ‖f(z_t,a_t) − z_{t+1}‖`
-(encoder + transition jointly, no Q) — encoder *capacity* was never the issue.
+fix the transition when the latent is shaped by DQN: `dyn` first saturated to a
+constant (`Tanh` on a 32-d embedding — replaced with `LayerNorm`, lr 3e-4, grad
+clip), and even with a heavy full-next-grid auxiliary loss the transition learns
+sensitivity ~0.014.
+
+**`wm_pretrain.py` — the fix, confirmed.** Encoder + transition trained
+*jointly, no Q, no reward* (JEPA-style: `‖tr(enc(g_t).dyn, a) − enc(g_{t+1}).dyn.detach()‖²`
++ a VICReg-lite variance term against collapse):
+
+| latent | action sensitivity |
+|---|---|
+| stage 1 — hand R^6 | 0.026 |
+| stage 2 — CNN + **DQN** objective | 0.014 |
+| **wm-pretrain — CNN + dynamics-first objective** | **0.226** |
+
+~16× recovery, latent not collapsed (across-state std 1.3). **The Stage-2
+failure was entirely the training objective** — a Q-shaped latent is
+*policy-relevant*, not *dynamics-complete*. Encoder capacity and the R^6
+bottleneck were never the issue. Full two-stage pipeline (pretrain → freeze →
+Q-learn on the frozen latent) is the follow-on.
 
 ## Known limits / next
 
