@@ -1,5 +1,7 @@
 # Yi-World-Model (`yiwm`)
 
+`v0.3.0` · 52 tests · CPU-only · core deps: torch + pytest
+
 A differentiable world model built on the **structural topology of the I Ching**
 (易经). The discrete scaffolding — 64 hexagrams, the King Wen order, the
 错/综/互 (inverse / reverse / nuclear) relations, the one-line-change graph, the
