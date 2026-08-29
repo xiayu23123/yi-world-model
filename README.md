@@ -46,7 +46,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 64 passed
+pytest -q                                            # 65 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -387,8 +387,23 @@ sensitivity ~0.014.
 ~16× recovery, latent not collapsed (across-state std 1.3). **The Stage-2
 failure was entirely the training objective** — a Q-shaped latent is
 *policy-relevant*, not *dynamics-complete*. Encoder capacity and the R^6
-bottleneck were never the issue. Full two-stage pipeline (pretrain → freeze →
-Q-learn on the frozen latent) is the follow-on.
+bottleneck were never the issue.
+
+**`wm_pipeline.py` — full two-stage pipeline, end to end.** wm-pretrain →
+**freeze** encoder + transition → DQN `Q(dyn, action)` on the frozen 32-d latent
+→ compare policies:
+
+| policy | mean return | vs random |
+|---|---|---|
+| random | +96 | — |
+| **model-free greedy `argmax_a Q(z,a)`** | **+163** | **+71%** |
+| model-based MPC (roll the frozen transition 4 steps, score with Q) | +159 | +66% |
+
+Encoder + transition provably frozen (transition sensitivity 0.225 → 0.231
+across the whole Q phase). **The pipeline works**: a dynamics-first latent
+*does* support policy learning (+71% ≫ the +20% bar). MPC ≈ greedy here — on a
+5×5 grid with a good Q, 4-step rollout error cancels the lookahead benefit;
+it's not a win, but not broken.
 
 ## Known limits / next
 
