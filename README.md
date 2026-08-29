@@ -165,14 +165,10 @@ Route B is the one that adds *cross-hexagram* semantics (乾初九 潜龙 vs 坤
 履霜 as opposite ends of the force space); route A only adds within-hexagram
 diversity. Both writes are incremental / crash-safe.
 
-`modern_text` authoring priority: **P0** 乾坤 12 爻 (anchor the two poles of the
-force space — write by hand). **P1** ~20 contrast pairs (既济/未济, 泰/否,
-谦/豫) — `--n-variants 5` then keep the best. **P2** the rest — fully automatic,
-`--filter-ckpt` drops any variant whose recovered 本卦 disagrees with the row.
-
-- `llm_fn` is a `str -> str` plug: `anthropic_llm_fn()` / `ollama_llm_fn()` /
-  `mock_llm_fn` / `paraphrase_fallback` (no-LLM, so the pipeline + filter run
-  offline). No LLM is called unless you pass one.
+- `llm_fn` is a `str -> str` plug: `anthropic_llm_fn()` / `deepseek_llm_fn()` /
+  `glm_llm_fn()` / `ollama_llm_fn()` / `mock_llm_fn` / `paraphrase_fallback`
+  (no-LLM, offline). Set the matching `*_API_KEY`. No LLM is called unless you
+  pass one.
 - Prompt forbids 卦 names, 爻位 terms, 阴阳/五行 vocab, and 鸡汤 words
   (努力/坚持/成功/正能量/…). Force is bucketed (有力/一般/薄弱), positions named
   (最底层/第二层/…) — nothing to leak.
@@ -181,6 +177,32 @@ force space — write by hand). **P1** ~20 contrast pairs (既济/未济, 泰/�
 - `SemanticJsonlDataset` embeds the texts once, rebuilds entities from `ben_k`,
   and yields the standard batch dict — training on it only moves the
   `YinYangEncoder` head (obs encoder is frozen by construction).
+
+### Result of the run (方向一, DeepSeek)
+
+`data/sem_all.jsonl` — 984 rows: 384 爻辞 translated ×2 (`--text-field
+canonical_text`) + 36 anchors ×6. Trained the head on it, `--text-encoder
+minilm-ml`, 3000 steps (train-set eval):
+
+| | benGua | moving/yao | 之卦 |
+|---|---|---|---|
+| synth template (hash / minilm-ml) | 0.998 / 0.996 | 0.977 / 0.966 | 0.94 / 0.90 |
+| **semantic prose (this run)** | **0.92** | **0.62** (below the 0.83 all-zeros baseline) | **0.06** |
+
+**The hypothesis "semantic obs → less moving ambiguity → break the `moving^6`
+wall" is falsified.** The head *can* recover hexagram identity from a frozen
+multilingual embedding of the prose (benGua 0.92), but 老爻 detection *collapses*:
+a paraphrase that "keeps the spirit" of a 爻辞 does not reliably carry the
+1-of-6 line position, and the `moving`/`force` labels come from the seed
+structure, not from what the LLM actually wrote — so label and text drift apart
+at line resolution. The `moving^6` wall is a per-line-resolution problem;
+freeform prose has *less* positional resolution than the rigid template, not
+more. (The consistency filter is also inert here — `mean_sign_match ≈ 0.5`,
+chance — because the synth-trained reference models only know how to parse the
+template.)
+
+Takeaway: this direction needs either the prompt to name the moving line as an
+unmissable phrase, a joint 6-bit moving head (obs-independent), or ~10x the data.
 
 ## Known limits / next
 

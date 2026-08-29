@@ -52,7 +52,7 @@ def _report_head(tag, logits, tgt, conf_thresh):
 
 
 def analyze(ckpt: str = "checkpoints/yiwm.pt", n: int = 8192, conf_thresh: float = 0.7,
-            seed: int = 2024, data: str | None = None):
+            seed: int = 2024, data: str | None = None, semantic_data: str | None = None):
     try:
         blob = torch.load(ckpt)
     except FileNotFoundError:
@@ -63,7 +63,17 @@ def analyze(ckpt: str = "checkpoints/yiwm.pt", n: int = 8192, conf_thresh: float
         text_encoder = blob.get("text_encoder", "hash")
     else:
         state, data = blob, data or "eco"
-    make, obs_dim = get_dataset(data, text_encoder)
+
+    if data == "semantic":
+        if not semantic_data:
+            raise SystemExit("this checkpoint was trained on --semantic-data; pass --semantic-data PATH")
+        from .data import SemanticJsonlDataset
+
+        make = SemanticJsonlDataset(semantic_data, text_encoder)
+        obs_dim = make.obs_dim
+        n = min(n, make.n)
+    else:
+        make, obs_dim = get_dataset(data, text_encoder)
     model = YiWorldModel(obs_dim=obs_dim)
     model.load_state_dict(state)
     model.eval()
@@ -116,5 +126,6 @@ if __name__ == "__main__":
     ap.add_argument("--n", type=int, default=8192)
     ap.add_argument("--conf-thresh", type=float, default=0.7)
     ap.add_argument("--data", choices=["eco", "synth"], default=None)
+    ap.add_argument("--semantic-data", default=None, help="JSONL path, for a --semantic-data checkpoint")
     a = ap.parse_args()
-    analyze(a.ckpt, a.n, a.conf_thresh, data=a.data)
+    analyze(a.ckpt, a.n, a.conf_thresh, data=a.data, semantic_data=a.semantic_data)
