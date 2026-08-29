@@ -18,11 +18,12 @@ is a no-LLM surface-variation stand-in so the pipeline is runnable offline.
 from __future__ import annotations
 
 import random
+from pathlib import Path
 
 import torch
 
 from .constants import BINARY_HEX
-from .synth import DOMAINS, TIMINGS, _structure
+from .synth import ACTIONS, DOMAINS, TIMINGS, _structure
 
 # --------------------------------------------------------------------------- #
 # prompt
@@ -271,4 +272,74 @@ def build_semantic_jsonl(
         "attempted": n,
         "dropped_gen": dropped_gen,
         "dropped_filter": n - dropped_gen - written,
+    }
+
+
+_VARIANT_PROMPT = (
+    "把下面这段情境扩写成一段新的、细节不同的现代情境（80-160 字），"
+    "人物、行业、具体约束都可以换，但「所处阶段 / 力量强弱 / 是否孤立」的结构保持不变。"
+    "禁止出现卦名、爻位词、阴阳/五行术语和鸡汤词。只叙述，不点评。\n\n原情境：\n{src}"
+)
+
+
+def build_from_seed(
+    seed_path: str,
+    llm_fn,
+    out_path: str,
+    n_variants: int = 3,
+    text_field: str = "modern_text",
+    filter_model=None,
+    text_encoder: str = "hash",
+    min_sign_match: float = 5 / 6,
+) -> dict:
+    """Expand a filled `yao_seed.json` into a training JSONL.
+
+    For every seed row that has a non-empty `text_field`, ask `llm_fn` for
+    `n_variants` re-phrasings that keep the structure, optionally consistency-
+    filter them, and append `{text, ben_k, force, moving, action, timing}` lines.
+    Rows with no text yet are skipped (reported in `skipped_no_text`).
+    """
+    import json
+
+    seeds = json.loads(Path(seed_path).read_text(encoding="utf-8"))
+    filled = [s for s in seeds if s.get(text_field, "").strip()]
+
+    texts, rows = [], []
+    for s in filled:
+        src = s[text_field].strip()
+        for _ in range(n_variants):
+            try:
+                texts.append(llm_fn(_VARIANT_PROMPT.format(src=src)))
+            except Exception:  # noqa: BLE001
+                texts.append(None)
+            rows.append({
+                "ben_k": s["hex_index"],
+                "force": s["yao_target"],
+                "moving": s["moving"],
+                "action": ACTIONS.index(s["action"]) if s["action"] in ACTIONS else 2,
+                "timing": TIMINGS.index(s["timing"]) if s["timing"] in TIMINGS else 0,
+            })
+
+    if filter_model is not None:
+        keep, _, sm = consistency_filter(texts, rows, filter_model, text_encoder, min_sign_match)
+    else:
+        keep = torch.tensor([t is not None for t in texts])
+        sm = torch.full((len(texts),), float("nan"))
+
+    written = 0
+    with open(out_path, "w", encoding="utf-8") as f:
+        for i, (row, text) in enumerate(zip(rows, texts)):
+            if not keep[i]:
+                continue
+            f.write(json.dumps({**{"text": text}, **row,
+                                "sign_match": None if sm[i].isnan() else round(float(sm[i]), 3)},
+                               ensure_ascii=False) + "\n")
+            f.flush()
+            written += 1
+    return {
+        "seeds_total": len(seeds),
+        "seeds_filled": len(filled),
+        "skipped_no_text": len(seeds) - len(filled),
+        "variants_attempted": len(texts),
+        "written": written,
     }

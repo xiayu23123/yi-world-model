@@ -44,7 +44,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 35 passed
+pytest -q                                            # 37 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -126,7 +126,8 @@ soft labels help only when `yao_target` is on a common scale (synth), and hurt
 | `model.py` | `YiWorldModel` assembly + King Wen conversion |
 | `losses.py` | multi-task loss: 本卦 CE (opt. soft) / 之卦 CE / 动爻 BCE + pairwise ranking / 行动 CE / `L_yao` Huber / 吉凶 / 五行 balance |
 | `data.py` / `synth.py` / `textenc.py` | `eco` generator / `synth` generator + `SynthPool` / pluggable frozen text encoders |
-| `augment.py` | LLM back-inversion augmentation: jargon-free prompt, `str->str` backends (anthropic / ollama / mock / paraphrase), projector consistency filter, crash-safe `build_semantic_jsonl` |
+| `augment.py` | LLM back-inversion: jargon-free prompt, `str->str` backends (anthropic / ollama / mock / paraphrase), projector consistency filter, crash-safe `build_semantic_jsonl` / `build_from_seed` |
+| `seed.py` | `build_yao_seed` — 384-line (64×6) skeleton with all structural fields derived (yao_target, moving, timing, action, 初九/六二… names); text fields left blank |
 | `train.py` / `demo.py` / `analysis.py` | training loop / one-shot visualization / 之卦 error decomposition |
 
 ## Data augmentation (`augment.py`) — opt-in, not run by default
@@ -138,11 +139,27 @@ buys *within-hexagram* diversity (many surface forms of one structure); it does
 **not** buy cross-hexagram distinguishability, so it is augmentation, not
 ground truth.
 
+Two routes:
+
 ```bash
+# A. structure-driven -- diverse surface forms of random synth structures
 python -c "from yiwm.augment import build_semantic_jsonl, anthropic_llm_fn; \
-  build_semantic_jsonl('data/sem.jsonl', 500, anthropic_llm_fn(), seed=0)"   # incremental append; crash-safe
+  build_semantic_jsonl('data/sem.jsonl', 500, anthropic_llm_fn(), seed=0)"
+
+# B. 爻辞-seeded -- the 384-line skeleton, then N variants per filled row.
+#    Structural fields (yao_target, moving, timing, action, yao_name 初九/六二…)
+#    are all derived; you fill canonical_text / modern_text from a 周易 source.
+python -m yiwm.seed data/yao_seed.json
+#    ...edit data/yao_seed.json: add modern_text to the rows you care about...
+python -c "from yiwm.augment import build_from_seed, anthropic_llm_fn; \
+  build_from_seed('data/yao_seed.json', anthropic_llm_fn(), 'data/sem.jsonl', n_variants=5)"
+
 python -m yiwm.train --semantic-data data/sem.jsonl --steps 4000              # train the head on it
 ```
+
+Route B is the one that adds *cross-hexagram* semantics (乾初九 潜龙 vs 坤初六
+履霜 as opposite ends of the force space); route A only adds within-hexagram
+diversity. Both writes are incremental / crash-safe.
 
 - `llm_fn` is a `str -> str` plug: `anthropic_llm_fn()` / `ollama_llm_fn()` /
   `mock_llm_fn` / `paraphrase_fallback` (no-LLM, so the pipeline + filter run
