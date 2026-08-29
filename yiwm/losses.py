@@ -3,13 +3,15 @@
 import torch
 import torch.nn.functional as F
 
-from .constants import BINARY_HEX
+from .constants import BINARY_HEX, MOVING_MASKS
 
 DEFAULT_WEIGHTS = {
     "hex": 1.0,
     "hex_next": 0.5,
-    "change": 0.2,     # per-position BCE, demoted in favour of the ranking term
-    "rank": 0.5,       # pairwise margin: 老爻 energy > 非老爻 energy + margin
+    "hex_next_joint": 0.5,
+    "change": 0.2,        # per-position BCE, demoted in favour of the ranking term
+    "rank": 0.5,          # pairwise margin: 老爻 energy > 非老爻 energy + margin
+    "moving_joint": 1.0,  # 21-way mask classification (no per-yao compounding)
     "action": 1.0,
     "yao": 0.3,
     "advice": 0.2,
@@ -67,8 +69,12 @@ def yi_world_loss(
     # 2. 之卦 classification
     if "hex_next" in batch:
         L["hex_next"] = F.cross_entropy(out["hex_logits_next"], batch["hex_next"])
+        if "hex_logits_next_joint" in out:
+            L["hex_next_joint"] = F.cross_entropy(out["hex_logits_next_joint"], batch["hex_next"])
 
-    # 3. 动爻 mask: per-position BCE + pairwise ranking on the raw energy
+    # 3. 动爻 mask: per-position BCE + pairwise ranking on the raw energy,
+    #    plus a JOINT head that predicts the whole moving set as one of 21
+    #    classes (breaks the per-yao (acc)^6 compounding on 之卦).
     if "moving" in batch:
         L["change"] = F.binary_cross_entropy(
             out["change"].clamp(1e-5, 1 - 1e-5), batch["moving"].float()
@@ -77,6 +83,15 @@ def yi_world_loss(
             L["rank"] = _moving_rank_loss(
                 out["change_energy"], batch["moving"], _RANK_MARGIN
             )
+        if "moving_logits" in out:
+            mm = MOVING_MASKS.to(batch["moving"].device)
+            eq = (batch["moving"].unsqueeze(1) == mm.unsqueeze(0)).all(-1)      # [B, 21]
+            valid = eq.any(-1)
+            if valid.any():
+                idx = eq.float().argmax(-1)
+                L["moving_joint"] = F.cross_entropy(
+                    out["moving_logits"][valid], idx[valid]
+                )
 
     # 4. 行动
     if "action" in batch:

@@ -44,7 +44,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 41 passed
+pytest -q                                            # 42 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -53,17 +53,28 @@ python -m yiwm.analysis --ckpt checkpoints/yiwm.pt        # error decomposition 
 
 ## Results (converged)
 
-| dataset | 本卦 | 动爻 / yao | 之卦 | 行动 |
-|---|---|---|---|---|
-| `eco`  (noisy Lotka-Volterra ecosystem, observation aliasing) | 0.96 | 0.97 | 0.84 | 0.97 |
-| `synth` (时位决定论 generator, idealized) | 0.998 | 0.977 | 0.937 | 0.99 |
+| dataset | 本卦 | 动爻 mask (all-6) | 之卦 (ChangeEngine) | **之卦 (joint head)** | 行动 |
+|---|---|---|---|---|---|
+| `eco`  (noisy Lotka-Volterra, observation aliasing) | 0.96 | 0.88 | 0.81 | **0.85** | 0.98 |
+| `synth` (时位决定论 generator, idealized) | 0.998 | 0.99 | 0.96 | **0.984** | 1.00 |
 
-**The 之卦 ceiling is a compounding wall, not a bug.** `之卦` requires all 6
-line-change bits right; per-yao accuracy `p ≈ 0.97` gives `p^6 ≈ 0.84`, which the
-`eco` number tracks almost exactly. `analysis` confirms ~94% of the residual
-之卦 errors are `本卦` right + 动爻 mask wrong; the structural map itself
-contributes ~0. Breaking the wall needs a *joint* 6-bit mutation head or a
-less lossy observation — not more tuning.
+**The `moving^6` compounding wall — and how the joint head lowers it.** `之卦`
+needs the whole 6-bit line-change mask right. The `ChangeEngine` predicts the
+6 lines *independently*, so exact-mask accuracy ≈ `(per-yao acc)^6` — on `eco`,
+`0.969^6 ≈ 0.83`. Adding a **21-way joint head** (`moving_head`: predict the
+whole moving set as one class of the 21 patterns with 1–2 老爻) sidesteps the
+independence:
+
+| exact moving-mask accuracy | `eco` | `synth` |
+|---|---|---|
+| per-yao product (`ChangeEngine`) | 0.83 | 0.89 |
+| joint 21-way head | **0.885** | **0.986** |
+
+On `synth` (clean obs) the joint head nearly eliminates the penalty — the wall
+*was* the independence assumption. On `eco` it recovers ~+5pts; the residual
+~11% is genuine observation aliasing (the noisy obs doesn't determine which
+line moves). `hex_logits_next_joint` (之卦 via the joint mask) is the better
+head and is what `analysis` now reports alongside the ChangeEngine path.
 
 ## Two data sources (`--data`), identical dict keys
 
@@ -122,6 +133,7 @@ soft labels help only when `yao_target` is on a common scale (synth), and hurt
 | `hexagram.py` | `HexagramInference` — 4-relation R-GCN + 经卦 embeds + polarity term + learned relation gates |
 | `wuxing.py` | `WuxingDynamics` — 生/克 field × relation graph, multiplicative update |
 | `change.py` | `ChangeEngine` — rank-aware adaptive threshold, STE phase transition, differentiable expected-yao (no argmax), real Hamming agreement |
+| `model.py` `moving_head` | 21-way joint 动爻-mask classifier + `hex_logits_next_joint` — the better 之卦 path (see the wall discussion above) |
 | `policy.py` | `TemporalPositionalPolicy` — 当位/不当位-weighted → {进 退 守 变 待} + intensity |
 | `model.py` | `YiWorldModel` assembly + King Wen conversion |
 | `losses.py` | multi-task loss: 本卦 CE (opt. soft) / 之卦 CE / 动爻 BCE + pairwise ranking / 行动 CE / `L_yao` Huber / 吉凶 / 五行 balance |
@@ -178,35 +190,35 @@ diversity. Both writes are incremental / crash-safe.
   and yields the standard batch dict — training on it only moves the
   `YinYangEncoder` head (obs encoder is frozen by construction).
 
-### Result of the run (方向一, DeepSeek)
+### Result of the run (方向一, DeepSeek) — the route does not work as specified
 
 `data/sem_all.jsonl` — 984 rows: 384 爻辞 translated ×2 (`--text-field
-canonical_text`) + 36 anchors ×6. Trained the head on it, `--text-encoder
-minilm-ml`, 3000 steps (train-set eval):
+canonical_text`) + 36 anchors ×6. Frozen `minilm-ml` encoder, head trained on it.
 
-| | benGua | moving/yao | 之卦 |
+| eval | benGua | moving/yao | 之卦 |
 |---|---|---|---|
 | synth template (hash / minilm-ml) | 0.998 / 0.996 | 0.977 / 0.966 | 0.94 / 0.90 |
-| **semantic prose (this run)** | **0.92** | **0.62** (below the 0.83 all-zeros baseline) | **0.06** |
+| semantic prose, **train set** | 0.92 | 0.62 | 0.06 |
+| semantic prose, **77 held-out structures** | **0.02 (chance)** | 0.47 | 0.01 |
 
-**The hypothesis "semantic obs → less moving ambiguity → break the `moving^6`
-wall" is falsified.** The head *can* recover hexagram identity from a frozen
-multilingual embedding of the prose (benGua 0.92), but 老爻 detection *collapses*:
-a paraphrase that "keeps the spirit" of a 爻辞 does not reliably carry the
-1-of-6 line position, and the `moving`/`force` labels come from the seed
-structure, not from what the LLM actually wrote — so label and text drift apart
-at line resolution. The `moving^6` wall is a per-line-resolution problem;
-freeform prose has *less* positional resolution than the rigid template, not
-more. (The consistency filter is also inert here — `mean_sign_match ≈ 0.5`,
-chance — because the synth-trained reference models only know how to parse the
-template.)
+The train/held-out gap is total: the head **memorizes** the ~770 training rows'
+(embedding → 卦) pairs and generalizes **not at all** to unseen structures.
+Causes: ~2 rows per structure (few-shot memorization), a frozen embedding that
+places two different 爻 in the same domain (乾九二 vs 乾九三, both "创业") right
+next to each other, and `ben_k`/`moving` labels that come from the seed
+structure rather than from what DeepSeek actually wrote. So the earlier
+"benGua 0.92" is meaningless — it is train-set only.
 
-Takeaway: this direction needs either the prompt to name the moving line as an
-unmissable phrase, a joint 6-bit moving head (obs-independent), or ~10x the data.
+**Conclusion:** LLM back-inversion + frozen semantic encoder + small head does
+not learn a generalizable situation→卦 map at this data scale. It would need
+end-to-end fine-tuning of the encoder (drops the frozen constraint), 10–50×
+more data, or a contrastive objective. The `moving^6` wall is untouched.
+`data/sem_all.jsonl` is kept as a corpus; the training result is negative.
 
 ## Known limits / next
 
-- 之卦 compounding wall (see above) — needs a joint mutation head.
+- 之卦 `eco` residual ~15% is observation aliasing — the joint head took out the
+  independence-assumption part; the rest needs a richer obs, not architecture.
 - No real 爻辞 / 彖 / 象 semantics; no real "situation → 卦" labelled data. This is
   the main gap between a working prototype and "actually understands the I Ching".
   `augment.py` narrows the diversity gap but not the aliasing gap.

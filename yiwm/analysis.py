@@ -85,6 +85,12 @@ def analyze(ckpt: str = "checkpoints/yiwm.pt", n: int = 8192, conf_thresh: float
 
     _report_head("benGua", o["hex_logits"], b["hex"], conf_thresh)
     _report_head("zhiGua", o["hex_logits_next"], b["hex_next"], conf_thresh)
+    if "hex_logits_next_joint" in o:
+        _report_head("zhiGua_joint", o["hex_logits_next_joint"], b["hex_next"], conf_thresh)
+        mmask = model.moving_masks[o["moving_logits"].argmax(1)]
+        mj = (mmask == b["moving"].float()).all(1).float().mean().item()
+        print(f"\n  joint moving-mask all-6 acc: {mj:.3f}  "
+              f"(vs per-yao^6 = {(( (o['change'] > .5).long() == b['moving']).float().mean().item())**6:.3f})")
 
     # --- zhiGua error decomposition --------------------------------------------
     ben_ok = o["hex_logits"].argmax(-1) == b["hex"]

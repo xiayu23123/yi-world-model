@@ -137,6 +137,24 @@ HEX_HU = _hu()
 # --- 爻位: 1 = 陽位 (初三五 -> idx 0,2,4), 0 = 陰位 (二四六) -----------------
 YAO_POS_PARITY = torch.tensor([1, 0, 1, 0, 1, 0], dtype=torch.float32)
 
+# --- 動爻 mask vocabulary: every 6-bit pattern with 1 or 2 moving lines (21) ---
+# Lets a head predict the whole moving SET as one class, sidestepping the
+# per-yao independence that caps 之卦 at (per-yao acc)^6.
+def _moving_masks():
+    from itertools import combinations
+    rows = []
+    for k in (1, 2):
+        for c in combinations(range(6), k):
+            m = [0] * 6
+            for i in c:
+                m[i] = 1
+            rows.append(m)
+    return torch.tensor(rows, dtype=torch.float32)
+
+
+MOVING_MASKS = _moving_masks()          # [21, 6]
+N_MOVING_MASKS = MOVING_MASKS.shape[0]  # 21
+
 # --- 五行 generation / control ----------------------------------------------
 # order: 木0 火1 土2 金3 水4
 WUXING = ["mu", "huo", "tu", "jin", "shui"]

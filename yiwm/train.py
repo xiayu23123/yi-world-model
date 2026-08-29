@@ -59,11 +59,15 @@ def train(
             with torch.no_grad():
                 hx = (out["hex_logits"].argmax(1) == batch["hex"]).float().mean().item()
                 nx = (out["hex_logits_next"].argmax(1) == batch["hex_next"]).float().mean().item()
+                nxj = (out["hex_logits_next_joint"].argmax(1) == batch["hex_next"]).float().mean().item()
                 ac = (out["policy"]["action_logits"].argmax(1) == batch["action"]).float().mean().item()
                 mv = ((out["change"] > 0.5).long() == batch["moving"]).float().mean().item()
+                mmask = model.moving_masks[out["moving_logits"].argmax(1)]
+                mvj = (mmask == batch["moving"].float()).all(1).float().mean().item()
             print(
                 f"step {s:5d} | loss {L['total']:.3f} | "
-                f"benGua {hx:.3f} | zhiGua {nx:.3f} | moving {mv:.3f} | action {ac:.3f}",
+                f"benGua {hx:.3f} | zhiGua {nx:.3f} | zhiGua_joint {nxj:.3f} | "
+                f"moving {mv:.3f} | moving_joint {mvj:.3f} | action {ac:.3f}",
                 flush=True,
             )
 

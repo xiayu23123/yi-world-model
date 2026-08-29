@@ -59,6 +59,25 @@ def test_adaptive_threshold_is_input_dependent():
     assert not torch.allclose(t1[0, 0], t2[0, 5], atol=1e-4) or not torch.allclose(t1, t2)
 
 
+def test_joint_moving_head():
+    from yiwm.constants import MOVING_MASKS
+    m = YiWorldModel(obs_dim=OBS_DIM)
+    b = _batch()
+    o = m(b["obs"], b["entity_states"], b["entity_cats"], b["entity_adj"])
+    assert o["moving_logits"].shape == (8, 21)
+    assert o["hex_logits_next_joint"].shape == (8, 64)
+    # mask-index helper is the inverse of the mask table
+    idx = m.moving_mask_index(MOVING_MASKS)
+    assert torch.equal(idx, torch.arange(21))
+    # a 3-line mask is not in the 1/2-line vocabulary -> -1
+    bad = torch.tensor([[1.0, 1, 1, 0, 0, 0]])
+    assert m.moving_mask_index(bad).item() == -1
+    # loss dict carries the joint terms
+    from yiwm.losses import yi_world_loss
+    L = yi_world_loss(o, b)
+    assert "moving_joint" in L and "hex_next_joint" in L
+
+
 def test_change_energy_and_rank_loss():
     from yiwm.losses import _moving_rank_loss
     m = YiWorldModel(obs_dim=OBS_DIM)
