@@ -44,7 +44,7 @@ entities ──► WuxingDynamics ──► Δstate   (生/克 field × relation
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                            # 46 passed
+pytest -q                                            # 49 passed
 python -m yiwm.train --data eco   --steps 12000      # ~3 min CPU
 python -m yiwm.train --data synth --steps 8000  --ckpt checkpoints/yiwm_synth.pt
 python -m yiwm.demo     --ckpt checkpoints/yiwm.pt        # one deterministic inference
@@ -239,10 +239,36 @@ one global `polarity` ⇒ 本卦 is always 乾 or 坤; per-line yin/yang would n
 more than 4 questions. This is a deliberate trade — it keeps the world model's
 core (变易 engine, 之卦, policy) usable without a working text→structure map.
 
+## Rollout + perturbation
+
+**`model.rollout(yao, steps)`** (`demo --rollout N`) iterates 本卦 → 之卦 →
+本卦 … as a toy dynamical system: no new observation, so the 老爻 flip their
+sign (discharged) and the whole force vector decays (`* decay` each step). It
+converges to a fixed point (`|force| < the learned 老爻 threshold` → `stop=fixed`)
+or a repeating 卦 (`stop=cycle`). e.g. `未濟 →(动爻)→ 未濟 → 解  [cycle]`,
+`|force| 0.90 → 0.63`.
+
+**`analysis` perturbation report** — add `yao += N(0, σ)` and measure argmax
+flip rates:
+
+| σ | benGua flip | 之卦 flip | action flip |
+|---|---|---|---|
+| 0.05 | 0.8% | 8% | 0.6% |
+| 0.20 | 13% | 41% | 5.5% |
+
+benGua and action are noise-robust; **之卦 is fragile** — the 老爻 determination
+sits right on the adaptive threshold, so small force perturbations cross it.
+Same story as the `eco` 之卦 residual: boundary sensitivity, not a bug.
+
 ## Known limits / next
 
 - 之卦 `eco` residual ~15% is observation aliasing — the joint head took out the
   independence-assumption part; the rest needs a richer obs, not architecture.
+- **Not yet a full world model:** the 变卦 rule is hard-coded (flip the 老爻),
+  not a *learned* state-transition `f: R^6 → R^6`. `rollout` gives a time axis
+  but on that fixed rule. A learned transition net + a toy environment (state,
+  action, reward) + imagination-based planning is the next major piece — its
+  own build, not a bolt-on.
 - No real 爻辞 / 彖 / 象 semantics; no real "situation → 卦" labelled data. This is
   the main gap between a working prototype and "actually understands the I Ching".
   `augment.py` narrows the diversity gap but not the aliasing gap.

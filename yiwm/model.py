@@ -95,6 +95,47 @@ class YiWorldModel(nn.Module):
         has = eq.any(-1)
         return torch.where(has, eq.float().argmax(-1), torch.full_like(has, -1, dtype=torch.long))
 
+    @torch.no_grad()
+    def rollout(self, yao: torch.Tensor, steps: int = 8, decay: float = 0.7):
+        """Iterate 本卦 -> 之卦 -> 本卦 ... as a toy dynamical system.
+
+        No new observation arrives, so the driver is the persisted force:
+        the 老爻 flip their sign (they discharged) and the whole vector decays
+        toward 0. It converges to a fixed point (no line 老 -> `stop='fixed'`)
+        or a repeating 卦 (`stop='cycle'`), or runs out of `steps`.
+
+        yao: [6] or [1,6].  Returns list of dicts, one per step:
+          {hex_k, moving (6), hex_next_k, energy_mag}
+        """
+        y = yao.view(1, 6).float()
+        hex_all = self.hexinf.hex_features()
+        # below any learned 老爻 threshold -> no line can move -> equilibrium
+        quiet = float(self.change.adaptive_threshold(y).min())
+        seen: dict[int, int] = {}
+        out = []
+        for t in range(steps):
+            hl = self.hexinf(y)
+            k = int(hl.argmax(-1))
+            hex_feat = torch.softmax(hl, -1) @ hex_all
+            mlog = self.moving_head(torch.cat([y, hex_feat], dim=-1))
+            mask = self.moving_masks[mlog.argmax(-1)]                 # [1,6]
+            still = y.abs().max().item() < quiet
+            flip = 0 if still else sum(int(b) << i for i, b in enumerate(mask[0].tolist()))
+            k_next = k ^ flip
+            out.append({
+                "hex_k": k, "moving": [0] * 6 if still else mask[0].int().tolist(),
+                "hex_next_k": k_next, "mag": round(y.abs().mean().item(), 3),
+            })
+            if still:
+                out[-1]["stop"] = "fixed"
+                break
+            if k in seen:
+                out[-1]["stop"] = f"cycle(len {t - seen[k]})"
+                break
+            seen[k] = t
+            y = y * (1 - 2 * mask) * decay                           # flip 老爻, decay all
+        return out
+
     @staticmethod
     def to_king_wen(binary_idx: torch.Tensor) -> torch.Tensor:
         return BINARY_TO_KING_WEN.to(binary_idx.device)[binary_idx]

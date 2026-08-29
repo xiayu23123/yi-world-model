@@ -125,6 +125,21 @@ def analyze(ckpt: str = "checkpoints/yiwm.pt", n: int = 8192, conf_thresh: float
               "  ".join(f"{r}={g[layer, i]:.3f}"
                         for i, r in enumerate(model.hexinf.RELATIONS)))
 
+    # --- perturbation sensitivity -------------------------------------------
+    with torch.no_grad():
+        yao0 = model.encoder(b["obs"])
+        base_ben = o["hex_logits"].argmax(1)
+        base_zhi = o["hex_logits_next_joint"].argmax(1)
+        base_act = o["policy"]["action_logits"].argmax(1)
+        print("\n=== perturbation sensitivity (yao += N(0, sigma), flip rate) ===")
+        for sigma in (0.02, 0.05, 0.10, 0.20):
+            op = model(b["obs"], b["entity_states"], b["entity_cats"], b["entity_adj"],
+                       hard=True, yao_override=yao0 + sigma * torch.randn_like(yao0))
+            fb = (op["hex_logits"].argmax(1) != base_ben).float().mean().item()
+            fz = (op["hex_logits_next_joint"].argmax(1) != base_zhi).float().mean().item()
+            fa = (op["policy"]["action_logits"].argmax(1) != base_act).float().mean().item()
+            print(f"  sigma {sigma:.2f}:  benGua flip {fb:.3f}  zhiGua flip {fz:.3f}  action flip {fa:.3f}")
+
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

@@ -77,6 +77,32 @@ def run(ckpt: str = "checkpoints/yiwm.pt", seed: int = 7, data: str | None = Non
     print(line)
 
 
+def run_rollout(ckpt: str, seed: int, steps: int):
+    from .constants import BINARY_TO_KING_WEN, KING_WEN_NAMES
+
+    state, data, te = _load(ckpt, "eco")
+    make, obs_dim = get_dataset(data, te)
+    model = YiWorldModel(obs_dim=obs_dim)
+    if state is not None:
+        model.load_state_dict(state)
+    model.eval()
+
+    b = make(1, seed=seed)
+    with torch.no_grad():
+        yao = model.encoder(b["obs"])[0]
+    r = model.rollout(yao, steps=steps)
+
+    def nm(k):
+        j = BINARY_TO_KING_WEN[k].item()
+        return f"{j + 1} {KING_WEN_NAMES[j]}"
+
+    print(f"[{ckpt}  data={data}]  rollout from a sampled scene:\n")
+    for i, s in enumerate(r):
+        mv = "".join("*" if x else "." for x in s["moving"])
+        print(f"  {i}: {nm(s['hex_k']):>10s}  动爻 {mv}  |force| {s['mag']:.3f}")
+    print(f"  ->: {nm(r[-1]['hex_next_k']):>10s}   [{r[-1].get('stop', 'maxsteps')}]")
+
+
 def run_structured(ckpt: str):
     from .model import YiWorldModel
     from .structured_input import ask_interactive, structured_infer
@@ -103,8 +129,12 @@ if __name__ == "__main__":
     ap.add_argument("--data", choices=["eco", "synth"], default=None)
     ap.add_argument("--structured-input", action="store_true",
                     help="answer 4 MC questions instead of sampling a scene")
+    ap.add_argument("--rollout", type=int, default=0, metavar="STEPS",
+                    help="iterate 本卦->之卦->... for STEPS and print the 卦 chain")
     a = ap.parse_args()
     if a.structured_input:
         run_structured(a.ckpt)
+    elif a.rollout:
+        run_rollout(a.ckpt, a.seed, a.rollout)
     else:
         run(a.ckpt, a.seed, a.data)
